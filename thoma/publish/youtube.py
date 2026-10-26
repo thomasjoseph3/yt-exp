@@ -6,6 +6,8 @@ client of type "Desktop app" -> save the JSON as
 Until Google audits your API project, uploads are forced to private.
 """
 import logging
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -25,7 +27,13 @@ TOKEN = SECRETS_DIR / "youtube_token.json"
 def auth():
     from google_auth_oauthlib.flow import InstalledAppFlow
     SECRETS_DIR.mkdir(parents=True, exist_ok=True)
-    creds = InstalledAppFlow.from_client_secrets_file(str(CLIENT), SCOPES).run_local_server(port=0)
+    flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT), SCOPES)
+    port = int(os.environ.get("THOMA_AUTH_PORT", 0))
+    if port:  # inside Docker: no browser here, so print the link and listen on the mapped port
+        creds = flow.run_local_server(host="localhost", bind_addr="0.0.0.0", port=port, open_browser=False,
+                                      authorization_prompt_message="Open this link in your browser:\n{url}\n")
+    else:
+        creds = flow.run_local_server(port=0)
     TOKEN.write_text(creds.to_json())
     TOKEN.chmod(0o600)
     me = _service().channels().list(part="snippet", mine=True).execute()["items"][0]
@@ -42,7 +50,9 @@ def _service():
     return build("youtube", "v3", credentials=creds, cache_discovery=False)
 
 
-def upload(video: Path, script: dict, kind: str, public: bool) -> dict:
+def upload(video: Path, script: dict, kind: str, publish_at: datetime | None = None) -> dict:
+    """Upload; with publish_at (timezone-aware) YouTube itself makes it public at that time,
+    so this machine can be off by then. Without it, the video goes public right away."""
     yt = _service()
     title = script["title"]
     if kind == "short" and "#shorts" not in title.lower() and len(title) <= 92:
@@ -51,9 +61,11 @@ def upload(video: Path, script: dict, kind: str, public: bool) -> dict:
         "snippet": {"title": title[:100], "description": caption(script, kind, "youtube")[:4900],
                     "tags": script.get("tags", []), "categoryId": cfg()["publish"]["youtube_category"],
                     "defaultLanguage": "en", "defaultAudioLanguage": "en"},
-        "status": {"privacyStatus": "public" if public else "private", "selfDeclaredMadeForKids": False,
+        "status": {"privacyStatus": "private" if publish_at else "public", "selfDeclaredMadeForKids": False,
                    "containsSyntheticMedia": True},
     }
+    if publish_at:
+        body["status"]["publishAt"] = publish_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     req = yt.videos().insert(part="snippet,status", body=body,
                              media_body=MediaFileUpload(str(video), chunksize=8 << 20, resumable=True))
     resp = None
@@ -75,6 +87,12 @@ def upload(video: Path, script: dict, kind: str, public: bool) -> dict:
         except Exception as e:
             log.warning("captions failed: %s", e)
     return {"remote_id": vid, "url": f"https://youtu.be/{vid}"}
+
+
+def unschedule(remote_id: str):
+    """Cancel a scheduled release: the video stays private."""
+    _service().videos().update(part="status", body={"id": remote_id, "status": {
+        "privacyStatus": "private", "selfDeclaredMadeForKids": False, "containsSyntheticMedia": True}}).execute()
 
 
 def make_public(remote_id: str):

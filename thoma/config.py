@@ -36,3 +36,9 @@ def cfg() -> dict:
 def secret(name: str) -> str:
     cfg()
     return os.environ.get(name, "").strip()
+
+
+def secrets(name: str) -> list[str]:
+    """NAME, NAME_2, NAME_3 ... : a main key plus backups, in the order to try them."""
+    keys = [secret(name)] + [secret(f"{name}_{i}") for i in range(2, 6)]
+    return [k for k in keys if k]

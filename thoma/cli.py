@@ -27,8 +27,9 @@ def main():
     p.add_argument("id", type=int)
     p = sub.add_parser("reject", help="drop a ready video")
     p.add_argument("id", type=int)
-    p = sub.add_parser("publish", help="upload a video to all its platforms right now")
+    p = sub.add_parser("publish", help="upload a video to all its platforms and make it public right now")
     p.add_argument("id", type=int)
+    sub.add_parser("voices", help="say a test line in each candidate voice (out/voices/) to pick one")
     sub.add_parser("tick", help="one scheduler pass")
     sub.add_parser("daemon", help="run forever (tick every schedule.tick_minutes)")
     sub.add_parser("status", help="queue and provider status")
@@ -61,7 +62,14 @@ def main():
     elif a.cmd == "reject":
         db.update_video(a.id, status="rejected")
     elif a.cmd == "publish":
-        pipeline.publish(a.id)
+        pipeline.schedule(a.id, at=pipeline.local_now())
+    elif a.cmd == "voices":
+        from . import voice
+        from .config import OUT
+        line = ("Ever wondered how ChatGPT knows what to say next? It's guessing, one word at a time. "
+                "But it's a very, very good guesser. Let's draw it out.")
+        for p in voice.audition(OUT / "voices", line):
+            print(p)
     elif a.cmd == "tick":
         pipeline.tick()
     elif a.cmd == "daemon":

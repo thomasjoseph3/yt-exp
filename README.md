@@ -1,6 +1,7 @@
 # Thoma Explains — automated tech-explainer studio
 
-Thoma, a retired maths teacher, explains AI and tech to beginners in animated tutorials.
+Thoma, a small comic tech imp, explains AI and tech to beginners in animated tutorials
+(ByteMonk-style diagrams, Fireship pace). Why it's built this way: STRATEGY.md.
 This folder makes and posts them on its own:
 
 | Format | Size | Where | How often |
@@ -14,8 +15,11 @@ you the full-quality file and a caption to copy.
 Topics come from **IBM Technology, ByteMonk and Fireship** (their feeds and transcripts are used as
 research only; every script, visual and voice is original) plus a backlog of evergreen beginner topics.
 
-Everything runs locally for free except the script writing, which uses whichever LLM answers first:
-Qoder CLI (your Qoder credits) → your Claude subscription → Gemini free tier → Groq free tier → local Ollama.
+Everything runs locally for free except the voice (Gemini TTS, free tier) and the script
+writing, which only Qoder (your Qoder credits) or Claude (your subscription) does. If neither is
+available, the studio waits and retries rather than using a weaker model.
+
+> **New machine?** Follow [SETUP_GUIDE.md](SETUP_GUIDE.md): requirements, accounts, keys and every step, in plain language.
 
 ## 1. Install (once)
 ```bash
@@ -30,7 +34,11 @@ uv run thoma test-llm
 ```
 
 ## 2. Keys (fill `.env`)
-- **Free LLM fallbacks**: `GEMINI_API_KEY` (aistudio.google.com/apikey), `GROQ_API_KEY` (console.groq.com).
+- **Thoma's voice**: a free Gemini key from aistudio.google.com/apikey (no card needed) in `GEMINI_API_KEY`.
+  It powers Gemini TTS (natural, styled voice). Add a second key as `GEMINI_API_KEY_2` as a backup. Then run
+  `uv run thoma voices`, listen to `out/voices/*.wav`, and put your favourite in `voice.gemini_voice`.
+  Optional second voice: Google Cloud Chirp 3 HD (`GOOGLE_TTS_API_KEY`, needs a billing card; the studio
+  stops at 900k characters a month so it stays inside the free 1M).
 - **YouTube upload**: Google Cloud Console → new project → enable *YouTube Data API v3* → OAuth consent screen
   (External, add yourself as test user) → Credentials → OAuth client ID → *Desktop app* → download JSON to
   `~/.config/thoma-studio/youtube_client.json` → `uv run thoma auth-youtube`.

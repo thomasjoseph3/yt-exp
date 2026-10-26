@@ -27,10 +27,11 @@ CREATE TABLE IF NOT EXISTS videos (
     id INTEGER PRIMARY KEY,
     idea_id INTEGER,
     kind TEXT,                   -- short | long
-    status TEXT,                 -- writing | rendering | ready | approved | published | failed
+    status TEXT,                 -- writing | rendering | ready | approved | scheduled | published | failed | rejected
     title TEXT,
     script TEXT,                 -- JSON
     path TEXT,
+    publish_at TEXT,             -- local time of its posting slot, set when scheduled
     error TEXT,
     created TEXT,
     updated TEXT
@@ -59,6 +60,8 @@ def conn():
     c = sqlite3.connect(DATA / "studio.db", timeout=30)
     c.row_factory = sqlite3.Row
     c.executescript(SCHEMA)
+    if "publish_at" not in {r[1] for r in c.execute("PRAGMA table_info(videos)")}:  # older databases
+        c.execute("ALTER TABLE videos ADD COLUMN publish_at TEXT")
     try:
         yield c
         c.commit()

@@ -14,5 +14,7 @@ wheels/
 data/
 out/
 assets/models/
+assets/music/*.mp3
 *.log
 thoma-backup-*.tar.gz
+secrets/

@@ -5,7 +5,6 @@ Chromium seeks the paused timeline to each frame's time, takes a screenshot,
 and the frames go straight into ffmpeg together with the voice track.
 """
 import base64
-import io
 import json
 import logging
 import math
@@ -17,7 +16,7 @@ import imageio_ffmpeg
 import numpy as np
 import soundfile as sf
 
-from . import character, visuals, voice
+from . import visuals, voice
 from .config import ASSETS, cfg
 
 log = logging.getLogger("thoma.render")
@@ -25,54 +24,40 @@ WEB = ASSETS / "web"
 TAIL = 1.2  # seconds held after the last line
 
 LAYOUTS = {
-    "short": {"W": 1080, "H": 1920, "stage": {"x": 50, "y": 200, "w": 980, "h": 1040},
-              "thoma": {"x": 290, "y": 1430, "w": 500, "h": 750}, "captions_y": 1285, "caption_size": 74,
+    # Thoma the imp sits small in the bottom-right corner; the visuals get the rest of the frame.
+    "short": {"W": 1080, "H": 1920, "stage": {"x": 50, "y": 190, "w": 980, "h": 1060},
+              "thoma": {"x": 735, "y": 1440, "w": 210}, "captions_y": 1300, "caption_size": 76,
               "brand": {"x": 50, "y": 100, "size": 38}},
-    "long": {"W": 1920, "H": 1080, "stage": {"x": 70, "y": 140, "w": 1380, "h": 880},
-             "thoma": {"x": 1440, "y": 340, "w": 467, "h": 700}, "captions_y": None, "caption_size": 0,
-             "brand": {"x": 70, "y": 52, "size": 32}},
+    "long": {"W": 1920, "H": 1080, "stage": {"x": 70, "y": 120, "w": 1560, "h": 900},
+             "thoma": {"x": 1655, "y": 735, "w": 225}, "captions_y": None, "caption_size": 0,
+             "brand": {"x": 70, "y": 46, "size": 32}},
 }
+MOODS = {"talk", "point", "think", "wow", "laugh", "wave"}
 
 
-def _png_uri(img) -> str:
-    buf = io.BytesIO()
-    img.save(buf, "PNG", compress_level=1)
-    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-
-
-def _thoma_track(scenes, spans, blocks, track, fps, n_frames, height):
-    """Per-frame [sprite index, bob px], plus the sprite images."""
+def _thoma_track(scenes, spans, blocks, track, fps, n_frames):
+    """Mouth shape per frame (from voice loudness), mood changes, and blink times for the imp."""
     hop = voice.SR // fps
     rms = np.array([np.sqrt(np.mean(track[i * hop:(i + 1) * hop] ** 2)) if i * hop < len(track) else 0.0
                     for i in range(n_frames)])
     ref = np.percentile(rms[rms > 0], 95) if (rms > 0).any() else 1.0
     rms /= max(ref, 1e-6)
+    mouth = [0 if v < 0.12 else 1 if v < 0.4 else 2 if v < 0.75 else 3 for v in rms]
+    moods = []
+    block_starts = {round(b["start"], 2) for b in blocks[1:]}
+    for s, (a, _) in zip(scenes, spans):
+        mood = s.get("mood") or s.get("pose") or "talk"
+        mood = mood if mood in MOODS else "talk"
+        if mood == "talk" and round(a, 2) in block_starts:  # point at each new visual
+            moods += [[a, "point"], [a + 1.2, "talk"]]
+        else:
+            moods.append([a, mood])
     rnd = random.Random(3)
     blinks, t = [], 1.5
     while t < n_frames / fps:
-        blinks.append(t)
+        blinks.append(round(t, 2))
         t += rnd.uniform(2.6, 4.8)
-    block_starts = [b["start"] for b in blocks]
-    scene_starts = [a for a, _ in spans]
-    keys, sprites, frames = {}, [], []
-    for fi in range(n_frames):
-        t = fi / fps
-        si = max(0, int(np.searchsorted(scene_starts, t, side="right")) - 1)
-        pose = scenes[si].get("pose", "talk")
-        if pose == "talk" and any(s <= t < s + 1.0 for s in block_starts[1:]):
-            pose = "point"
-        level = rms[fi]
-        mouth = 0 if level < 0.12 else 1 if level < 0.4 else 2 if level < 0.75 else 3
-        blink = any(b <= t < b + 0.13 for b in blinks)
-        speaking = level > 0.05
-        gesture = (int(t * 3) % 6) * 2 if speaking and pose == "talk" else 0
-        key = (pose, mouth, blink, gesture)
-        if key not in keys:
-            keys[key] = len(sprites)
-            sprites.append(_png_uri(character.sprite(pose, mouth, blink, gesture, height)))
-        bob = round(4 * math.sin(t * 2 * math.pi / 1.7)) if speaking else 0
-        frames.append([keys[key], bob])
-    return sprites, frames
+    return {"mouth": mouth, "moods": moods, "blinks": blinks}
 
 
 def _srt(words, path: Path):
@@ -84,7 +69,7 @@ def _srt(words, path: Path):
         for i in range(0, len(scene_words), 8):
             chunk = scene_words[i:i + 8]
             n += 1
-            text = " ".join(w for w, _, _ in chunk).replace("*", "")
+            text = " ".join(w for w, _, _ in chunk)
             out.append(f"{n}\n{ts(chunk[0][1])} --> {ts(chunk[-1][2])}\n{text}\n")
     path.write_text("\n".join(out))
 
@@ -95,7 +80,7 @@ def _captions(words):
     for scene_words in words:
         cur = []
         for w, s, e in scene_words:
-            cur.append({"w": w.replace("*", ""), "s": s, "e": e})
+            cur.append({"w": w, "s": s, "e": e})
             if len(cur) == 3 or w[-1] in ".,?!:;":
                 groups.append(cur)
                 cur = []
@@ -152,28 +137,31 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     track, spans, words = voice.narrate(scenes)
     limit = 58.5 if kind == "short" else 12 * 60
     if len(track) / voice.SR > limit:  # a Short must stay under a minute: speak a little faster
-        speed = cfg()["voice"]["speed"] * len(track) / voice.SR / (limit - 1)
-        if speed > 1.25:
+        factor = len(track) / voice.SR / (limit - 0.5)
+        if factor > 1.2:
             raise ValueError(f"narration is {len(track) / voice.SR:.0f}s, too long for a {kind}")
-        track, spans, words = voice.narrate(scenes, speed)
+        track = voice.stretch(track, factor)
+        spans = [(a / factor, b / factor) for a, b in spans]
+        words = [[(w, a / factor, b / factor) for w, a, b in ws] for ws in words]
     duration = len(track) / voice.SR + TAIL
     n_frames = math.ceil(duration * fps)
 
     blocks = _blocks(scenes, spans, words, duration)
     events = [(b["start"] - 0.12, "whoosh", 0.35) for b in blocks[1:]]
     events += [(t, "pop", 0.18) for b in blocks for t in b["reveals"][:6]]
-    sf.write(out_dir / "voice.wav", voice.mix_sfx(track, events), voice.SR)
+    sf.write(out_dir / "voice.wav", track, voice.SR)
+    sf.write(out_dir / "sfx.wav", voice.mix_sfx(np.zeros_like(track), events), voice.SR)
     _srt(words, out_dir / "captions.srt")
     script["chapters"] = chapters(script, spans) if kind == "long" else []
 
-    sprites, frames = _thoma_track(scenes, spans, blocks, track, fps, n_frames, L["thoma"]["h"])
+    thoma = _thoma_track(scenes, spans, blocks, track, fps, n_frames)
     used = visuals.icons_used([b["visual"] for b in blocks])
     data = {
         "kind": kind, "W": W, "H": H, "fps": fps, "duration": duration, "n_frames": n_frames,
         "title": script["title"],
         "layout": {k: L[k] for k in ("stage", "thoma", "captions_y", "caption_size", "brand")},
         "blocks": blocks, "captions": _captions(words) if L["captions_y"] else [],
-        "thoma": {"sprites": sprites, "frames": frames},
+        "thoma": thoma,
         "icons": {name: visuals.icon_svg(name) for name in used},
     }
     (out_dir / "timeline.json").write_text(json.dumps({k: v for k, v in data.items() if k not in ("thoma", "icons")}, indent=1))
@@ -208,19 +196,28 @@ def render(script: dict, kind: str, out_dir: Path) -> Path:
     data = prepare(script, kind, out_dir)
     fps, n_frames, duration, W, H = data["fps"], data["n_frames"], data["duration"], data["W"], data["H"]
 
-    music = sorted(p for p in (ASSETS / "music").glob("*") if p.suffix.lower() in (".mp3", ".wav", ".ogg", ".m4a"))
+    mc = cfg().get("music", {})
+    tracks = [t for t in mc.get(kind, []) if (ASSETS / "music" / t).exists()]
     out = out_dir / f"{kind}.mp4"
     cmd = [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error",
-           "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", str(fps), "-i", "-", "-i", str(out_dir / "voice.wav")]
-    if music:
-        cmd += ["-stream_loop", "-1", "-i", str(random.Random(len(script["title"])).choice(music))]
-        vol = cfg()["video"].get("music_volume", 0.08)
-        af = (f"[1:a]aresample=48000,apad[v];[2:a]aresample=48000,volume={vol}[m];"
-              "[v][m]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=11[a]")
+           "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", str(fps), "-i", "-",
+           "-i", str(out_dir / "voice.wav"), "-i", str(out_dir / "sfx.wav")]
+    voice_in = f"[1:a]aresample=48000,{voice.VOICE_CHAIN},apad"
+    if tracks:
+        track_name = random.Random(script["title"]).choice(tracks)
+        script["music"] = track_name.rsplit(".", 1)[0]
+        cmd += ["-stream_loop", "-1", "-i", str(ASSETS / "music" / track_name)]
+        # music sits low and ducks further whenever Thoma speaks
+        af = (f"{voice_in},asplit=2[v][key];[2:a]aresample=48000,apad[s];"
+              f"[3:a]aresample=48000,volume={mc.get('volume', 0.22)}[m];"
+              "[m][key]sidechaincompress=threshold=0.015:ratio=8:attack=20:release=450[md];"
+              "[v][s][md]amix=inputs=3:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=9[a]")
     else:
-        af = "[1:a]aresample=48000,apad,loudnorm=I=-14:TP=-1.5:LRA=11[a]"
+        af = (f"{voice_in}[v];[2:a]aresample=48000,apad[s];"
+              "[v][s]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=9[a]")
     cmd += ["-filter_complex", af, "-map", "0:v", "-map", "[a]", "-shortest",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", "-r", str(fps),
+            "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-tune", "animation",
+            "-pix_fmt", "yuv420p", "-r", str(fps),
             "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", str(out)]
 
     pw, browser, page, errors = _browser(W, H)
@@ -247,17 +244,18 @@ def render(script: dict, kind: str, out_dir: Path) -> Path:
             proc.kill()
         browser.close()
         pw.stop()
-    log.info("rendered %s (%.0fs)", out, duration)
+    for f in ("voice.wav", "sfx.wav"):  # muxed into the mp4; no need to keep them
+        (out_dir / f).unlink(missing_ok=True)
+    log.info("rendered %s (%.0fs, %.0f MB)", out, duration, out.stat().st_size / 1e6)
     return out
 
 
 def thumbnail(page, script: dict, path: Path):
-    """1280x720 thumbnail: big text, one glowing icon, Thoma."""
+    """1280x720 thumbnail: big text, one glowing icon, Thoma the imp reacting."""
     first = visuals.normalize(script["scenes"][0].get("visual"))
     text = script.get("thumb_text") or script["title"].split("?")[0] + "?"
     icon = visuals.fix_icon(script.get("thumb_icon") or first.get("icon") or "sparkles")
     page.set_viewport_size({"width": 1280, "height": 720})
     page.goto((WEB / "thumb.html").as_uri())
-    page.evaluate("d => draw(d)", {"text": text, "icon": visuals.icon_svg(icon),
-                                   "thoma": _png_uri(character.sprite("point", 2, False, 0, 900))})
+    page.evaluate("d => draw(d)", {"text": text, "icon": visuals.icon_svg(icon)})
     page.screenshot(path=str(path), type="jpeg", quality=92)

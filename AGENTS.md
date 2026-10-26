@@ -1,7 +1,7 @@
 # Thoma Studio — guide for coding agents (Qoder, Claude Code, any other)
 
-An automated channel, **Thoma Explains**: an animated retired teacher, Thoma, explains AI and tech to
-beginners. The studio makes a ~5-minute 16:9 tutorial every day (YouTube + Facebook) and 2 Shorts
+An automated channel, **Thoma Explains**: Thoma, a small comic tech imp in the corner of the screen,
+explains AI and tech to beginners over ByteMonk/Fireship-style animations. Strategy: STRATEGY.md. The studio makes a ~5-minute 16:9 tutorial every day (YouTube + Facebook) and 2 Shorts
 a day (YouTube Shorts + Instagram Reels + Facebook Reels), and runs 24/7 as one Python process.
 
 ## How it works (one line per step)
@@ -9,11 +9,13 @@ a day (YouTube Shorts + Instagram Reels + Facebook Reels), and runs 24/7 as one 
    an LLM keeps videos that can become one beginner concept and adds an evergreen backlog.
 2. `writer.py` fetches the source transcript, turns it into neutral research notes, writes Thoma's
    script (scenes = narration + a visual), runs code gates, then an LLM review. Failures loop back.
-3. `voice.py` speaks it with local Kokoro TTS (Thoma's blended voice) and adds synthesized SFX.
+3. `voice.py` speaks it (Google Chirp 3 HD, local Kokoro as backup) and adds synthesized SFX; render.py
+   masters the voice and ducks the music (assets/music, CC BY, credited in descriptions).
 4. `render.py` loads `assets/web/stage.html` in headless Chromium, seeks the GSAP timeline to every
-   frame, screenshots it and pipes frames to ffmpeg. Thoma himself is drawn by `character.py`.
-5. `pipeline.py` queues the video, asks the owner on Telegram (unless auto_publish), and publishes
-   into the next slot via `publish/youtube.py` and `publish/meta.py`.
+   frame, screenshots it and pipes frames to ffmpeg. Thoma the imp is SVG, drawn by `assets/web/mascot.js`.
+5. `pipeline.py` sends it to the owner on Telegram, and once approved (or right away in `mode: auto`)
+   uploads it with the next free slot as its release time (YouTube `publishAt`), so the machine only
+   needs to be on before the slot, e.g. overnight. Plans `plan_ahead_hours` ahead.
 6. `cli.py daemon` runs `pipeline.tick()` every 15 minutes, forever.
 
 ## Map
@@ -27,11 +29,12 @@ thoma/writer.py          research -> script -> gates -> review
 thoma/visuals.py         visual types the LLM may use (SPEC), icon names, narration-synced reveal times
 thoma/voice.py           TTS, word timings, SFX
 thoma/render.py          prepare() / preview() / render() / thumbnail()
-thoma/character.py       Thoma sprite (poses talk/point/think/wave, 4 mouth shapes, blink)
-thoma/pipeline.py        make(), publish(), tick(), scheduler rules
+thoma/pipeline.py        make(), slots(), schedule(), publish_due(), tick(): the scheduler
 thoma/publish/           youtube.py (OAuth, resumable upload, thumbnail, captions), meta.py (FB + IG)
 thoma/notify.py          Telegram messages, preview videos, /approve /reject /pause /resume /status
-assets/web/              stage.html/css/js (scene builders), thumb.html, vendor (GSAP, highlight.js, Lucide icons)
+assets/web/              stage.html/css/js (scene builders), mascot.js (Thoma: moods talk/point/think/wow/laugh/wave),
+                         thumb.html, vendor (GSAP, highlight.js, Lucide icons)
+assets/music/            background tracks (downloaded by deploy/setup.sh)
 assets/samples/          hand-written scripts for testing the renderer without an LLM
 data/studio.db           SQLite: ideas, videos, uploads, kv. data/studio.log is the log
 out/<id>-<kind>/         per video: script.json, voice.wav, captions.srt, timeline.json, mp4, thumbnail.jpg
@@ -48,14 +51,16 @@ out/<id>-<kind>/         per video: script.json, voice.wav, captions.srt, timeli
 | `preview <script.json> short\|long [--at 2,10]` | still PNGs in out/preview/ — use this to check visual changes, it takes seconds |
 | `approve ID` / `reject ID` / `publish ID` | owner actions |
 | `tick` / `daemon` | one scheduler pass / run forever |
+| `voices` | the same line in each candidate voice (out/voices/), to pick `voice.google_voice` |
 | `auth-youtube` | one-time YouTube sign-in |
 
 ## Rules
-- **Nothing goes public without the owner's approval** while `publish.auto_publish` is false. Don't flip it unless the owner says so.
+- **Nothing goes public without the owner's approval** while `publish.mode` is `approve`. Don't switch to `auto` unless the owner says so.
+- **Growth and monetization rules are in STRATEGY.md**: quality over quantity (YouTube's inauthentic-content policy), varied formats, owner in the loop.
 - **Never copy source channels.** They are topic and fact sources only. Keep the 7-gram copy gate in `writer.gates()`; never reuse their visuals, audio or code.
-- **Thoma's look and voice are fixed.** Don't change `character.py` shapes/colours or `voice.blend` unless the owner asks; consistency is the brand.
+- **Thoma's look and voice are fixed.** Don't change `mascot.js` shapes/colours or the chosen voice unless the owner asks; consistency is the brand. He is an original design: never make him resemble an existing comic character.
 - **Checks live in code** (`writer.gates`). If the owner changes a rule about scripts, change the gate and the prompt together.
-- **Keep the LLM layer swappable.** Every model call goes through `llm.ask_json()`. Add providers in config.yaml, not new call sites.
+- **Only Qoder or Claude write content** (owner's rule). Every model call goes through `llm.ask_json()`; don't add other LLM providers (Gemini is used only for the voice).
 - Secrets stay in `.env` and `~/.config/thoma-studio/`. Never log or print them.
 - After editing anything visual, run `uv run thoma preview assets/samples/short_rag.json short` (and `long`) and look at the PNGs before saying it works.
 - Shorts must stay under 60 s (render.py speeds the voice up a little, then refuses).

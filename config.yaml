@@ -4,11 +4,11 @@ channel:
   name: "Thoma Explains"
   timezone: "Asia/Kolkata"
 
-# LLM providers, tried in order. If one fails (limit reached, offline, bad key)
-# the next one is used and the switch is logged. Remove or reorder freely.
-#   claude_cli : your Claude subscription through the `claude -p` command
-#   cli        : any coding-agent CLI that takes a prompt on stdin and prints the answer (Qoder CLI)
-#   openai     : any OpenAI-compatible API (Gemini free tier, Groq, OpenRouter, Ollama)
+# Script writers, tried in order. Only Qoder and Claude write content: if both are unavailable
+# (limits reached, offline), the studio waits and retries on the next tick instead of using a
+# weaker model. A provider that fails is skipped for cooldown_minutes, then tried again.
+#   cli        : a coding-agent CLI in print mode, prompt on stdin (Qoder CLI)
+#   claude_cli : your Claude subscription through `claude -p`
 llm:
   providers:
     - name: qoder                      # first choice: uses your Qoder credits
@@ -17,21 +17,6 @@ llm:
     - name: claude                     # backup: your Claude subscription
       type: claude_cli
       model: sonnet
-    - name: gemini
-      type: openai
-      base_url: https://generativelanguage.googleapis.com/v1beta/openai
-      model: gemini-2.5-flash          # pick any current free model from aistudio.google.com
-      api_key_env: GEMINI_API_KEY
-    - name: groq
-      type: openai
-      base_url: https://api.groq.com/openai/v1
-      model: llama-3.3-70b-versatile
-      api_key_env: GROQ_API_KEY
-    - name: ollama
-      type: openai
-      base_url: http://localhost:11434/v1
-      model: llama3.1:8b               # local and free, but weaker writing
-      api_key_env: ""
   # After a provider fails, skip it for this many minutes before trying it again.
   cooldown_minutes: 60
 
@@ -47,22 +32,33 @@ sources:
       channel_id: UCsBjURrPoezykLs9EqgamOA
   refresh_hours: 6
 
-# How much to make and when it goes out (local time, see channel.timezone).
+# When videos go out (local time, see channel.timezone). The studio makes videos for the slots
+# in the next plan_ahead_hours and uploads them with that release time; YouTube publishes them
+# at the slot by itself, so this machine only has to be on at some point before (e.g. overnight).
+# Default times target both audiences: 06:30 IST is 8 pm in New York (US prime time, higher ad
+# rates); 19:30 IST is Indian prime time. Tune them after 2 weeks with YouTube Studio ->
+# Analytics -> Audience -> "When your viewers are on YouTube".
 schedule:
-  shorts_per_day: 2
-  longs_per_week: 7
-  long_days: [mon, tue, wed, thu, fri, sat, sun]
   publish_times:
-    short: ["09:30", "18:30"]
-    long: ["17:00"]
-  # Nothing is made or published between these hours.
-  quiet_hours: ["23:00", "07:00"]
+    short: ["07:30", "19:30"]
+    long: ["06:30"]
+  long_days: [mon, tue, wed, thu, fri, sat, sun]
+  plan_ahead_hours: 36          # e.g. switched on at 21:00 -> makes everything up to 09:00 the day after
   tick_minutes: 15
 
+# Shorts rotate between these formats (relative weights) so the channel never looks templated.
+# "news" is only used for topics fresh from the source channels.
+short_formats: {explainer: 60, myth: 15, guess: 10, news: 15}
+
 publish:
-  # false: videos wait in the queue until you run `thoma approve <id>`.
-  # true : fully hands-off. Turn on once you trust the output (after ~2 weeks).
-  auto_publish: false
+  # approve: each video waits for your /approve on Telegram (or `thoma approve <id>`), then
+  #          gets the next free slot.
+  # auto   : finished videos take the next free slot automatically; you get them on Telegram
+  #          and can /reject (or cancel in the YouTube Studio app) before they go live.
+  mode: approve
+  # Google's API audit lifts the "uploads stay private" lock. Until then, set the schedule in
+  # the YouTube Studio app yourself (the Telegram message tells you the time). Then set true.
+  youtube_audited: false
   # youtube | instagram | facebook | telegram
   # "telegram" sends you the full-quality file plus a ready-to-copy caption, for posting
   # to Instagram/Facebook by hand. Swap it for instagram/facebook once Meta is set up.
@@ -72,9 +68,22 @@ publish:
   graph_api_version: v26.0             # Meta Graph API; bump when Meta deprecates it
 
 voice:
-  # Thoma's own voice: a blend of two free Kokoro voices, so nobody else sounds like him.
-  blend: {bm_george: 0.6, am_michael: 0.4}
-  speed: 0.95
+  # Tried in order, per scene; a failing engine is skipped for the rest of that video.
+  #   gemini = Gemini TTS via your AI Studio key (GEMINI_API_KEY). Free tier, most natural, takes a style.
+  #   google = Google Cloud Chirp 3 HD (GOOGLE_TTS_API_KEY). 1M chars/month free; needs a billing card.
+  #   kokoro = local, free, offline, more robotic. Always the last resort.
+  engines: [gemini, google, kokoro]
+  gemini_models: [gemini-3.8-flash-tts, gemini-3.1-flash-tts-preview, gemini-2.5-flash-preview-tts]  # tried in order when one is busy
+  gemini_voice: Puck                   # run `thoma voices` to hear the options, then pick one
+  gemini_style: >-
+    A playful, warm tech explainer who loves this stuff: clear and easy to follow, lively but
+    not rushed, smiling while talking, a cheeky little emphasis on the key words.
+  google_voice: en-US-Chirp3-HD-Puck
+  google_monthly_char_cap: 900000      # Chirp free tier is 1M/month; stop before that so it never bills
+  kokoro_voice: am_michael
+  speed: 1.0                           # local voice only
+  audition_voices: [Puck, Fenrir, Charon, Orus, Achird, Sadachbia]
+  audition_kokoro: [am_michael, am_puck, bm_george]
   # Spelling fixes so the voice says terms right: written form -> spoken form.
   say_as:
     "LLMs": "L L Ms"
@@ -96,4 +105,12 @@ storage:
 
 video:
   fps: 25
-  music_volume: 0.08                   # drop CC0/CC-BY tracks into assets/music/ to enable
+
+# Background music, quiet under the voice and ducked further while Thoma speaks.
+# Kevin MacLeod tracks (incompetech.com, CC BY 4.0): free, credited automatically in descriptions.
+music:
+  volume: 0.18
+  short: ["Sneaky Snitch.mp3", "Fluffing a Duck.mp3", "Carefree.mp3"]
+  long: ["Wallpaper.mp3", "Local Forecast - Elevator.mp3", "Inspired.mp3"]
+  credit: 'Music: "{track}" by Kevin MacLeod (incompetech.com), licensed under CC BY 4.0'
+

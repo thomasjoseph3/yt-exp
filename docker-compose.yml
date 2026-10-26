@@ -1,0 +1,23 @@
+# Run the studio 24/7 with Docker (Windows, Mac or Linux):
+#   docker compose up -d --build      start (and rebuild after code changes)
+#   docker compose logs -f            watch it
+#   docker compose run --rm studio thoma status
+# One-time YouTube sign-in (opens a link you paste into your browser):
+#   docker compose run --rm --service-ports studio thoma auth-youtube
+services:
+  studio:
+    build: .
+    image: thoma-studio
+    restart: unless-stopped          # comes back after crashes, reboots and Docker restarts
+    env_file: .env
+    environment:
+      TZ: Asia/Kolkata               # keep in step with channel.timezone in config.yaml
+      THOMA_AUTH_PORT: "8765"        # YouTube sign-in callback, only used by `thoma auth-youtube`
+    volumes:
+      - ./config.yaml:/app/config.yaml          # edit settings without rebuilding
+      - ./data:/app/data                        # database + log
+      - ./out:/app/out                          # finished videos
+      - ./secrets:/root/.config/thoma-studio    # YouTube sign-in (never leaves this machine)
+    ports:
+      - "127.0.0.1:8765:8765"
+    shm_size: 1gb                    # Chromium needs more shared memory than Docker's default

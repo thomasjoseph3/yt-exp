@@ -10,10 +10,7 @@ export PATH="$HOME/.local/bin:$PATH"
 uv sync
 uv run playwright install --with-deps chromium-headless-shell   # asks for sudo once (system libraries)
 
-mkdir -p assets/models
-REL=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0
-[ -s assets/models/kokoro.onnx ] || curl -L -o assets/models/kokoro.onnx $REL/kokoro-v1.0.int8.onnx
-[ -s assets/models/voices.bin ]  || curl -L -o assets/models/voices.bin  $REL/voices-v1.0.bin
+./deploy/fetch-assets.sh
 
 if [ -n "${1:-}" ]; then   # restore keys, YouTube sign-in and the video history from backup.sh
   STAGE="$(mktemp -d)"; tar -xzf "$1" -C "$STAGE"

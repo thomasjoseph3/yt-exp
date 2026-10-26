@@ -15,28 +15,47 @@ log = logging.getLogger("thoma.writer")
 CHARACTER = (Path(__file__).parent / "character.md").read_text()
 
 FORMATS = {
-    "short": {"words": (85, 140), "scenes": (5, 9), "spec": (
-        "A vertical Short/Reel of 35-55 seconds (85-140 spoken words). Scene 1 is the hook: a surprising "
-        "question or everyday situation in under 12 words, no greeting, no self-introduction. One concept "
-        "only, explained with one analogy and one diagram. End with the takeaway scene and 'See you at the board.'")},
-    "long": {"words": (650, 850), "scenes": (16, 30), "spec": (
-        "A 16:9 tutorial of about 5 minutes (650-850 spoken words). Scene 1 is the hook (a question or "
-        "everyday situation), scene 2 is 'I'm Thoma, and today we're drawing out <topic>.' Then: the analogy, "
-        "the real explanation step by step with diagrams, one concrete example (code if it is a coding topic), "
-        "one common misconception, where it is used in real life, and the takeaway. Mark 4-6 section starts "
-        "with \"chapter\": \"<=30 chars\" on that scene (YouTube chapters). The last line ends with "
-        "'Chalk it up, and I'll see you at the board.'")},
+    "short": {"words": (100, 165), "target": "120-150", "scenes": (7, 12), "max_per_visual": 28, "signoff": "thoma out", "spec": (
+        "A vertical Short/Reel of 45-59 seconds (100-155 spoken words), part of the series '<topic> in 60 "
+        "seconds'. Scene 1 is the hook in under 12 words: a surprising question or fact about what the viewer "
+        "will understand. No greeting, no self-introduction. One concept only: one analogy, one diagram, one "
+        "'here's the trick' moment. The last line lands the takeaway, ends with 'Thoma out!', and should flow "
+        "back into the hook so the Short loops naturally.")},
+    "long": {"words": (650, 850), "target": "700-800", "scenes": (20, 34), "max_per_visual": 32, "signoff": "thoma out", "spec": (
+        "A 16:9 tutorial of about 5 minutes (650-850 spoken words). Scene 1 is the hook (what the viewer will "
+        "understand and why it matters). Scene 2: 'I'm Thoma, your friendly neighbourhood tech imp. Let's poke at "
+        "<topic>.' Then: the analogy, the real explanation step by step with diagrams, one concrete example (code "
+        "if it is a coding topic), one common misconception, where it shows up in real life, and the takeaway. "
+        "Mark 4-6 section starts with \"chapter\": \"<=30 chars\" on that scene (YouTube chapters). "
+        "The last line ends with 'Stay curious. Thoma out!'")},
+}
+
+# Short formats rotate so the channel never feels like one template (config short_formats).
+SHORT_FORMATS = {
+    "explainer": "Format: explainer. Teach the one concept so a beginner truly gets it: hook, analogy, "
+                 "how it really works (diagram), the 'here's the trick' moment, takeaway.",
+    "myth": "Format: myth vs fact. Open by stating a popular belief about the topic as if true, then flip "
+            "it ('...except that's not how it works'). Use a compare visual for myth vs reality, then the real "
+            "explanation. Title like 'No, <thing> doesn't <myth>'.",
+    "guess": "Format: can you guess? Open with a question the viewer tries to answer ('Guess how many... / "
+             "What happens when...'), say 'take a guess' with a <short pause>, then reveal with a stat or "
+             "bigtext visual and explain why. End by asking them to comment their guess before the sign-off.",
+    "news": "Format: fresh news, explained. Start from what just happened (from the research notes, stating "
+            "only what the notes support), then explain the underlying concept a beginner needs to understand "
+            "it. Title like '<news thing>, explained in 60 seconds'.",
 }
 
 SCRIPT_SHAPE = """Reply with JSON only:
-{"title":"<=70 chars, the plain search phrase first, e.g. 'What is RAG? Retrieval Augmented Generation Explained'",
+{"title":"<=70 chars. Short: '<Topic> in 60 seconds'. Long: '<Topic> explained in 5 minutes' or 'What is <Topic>? (explained simply)'. Plain search words first.",
  "description":"3-5 sentences: what the viewer learns, plain and helpful, no hashtags, no timestamps",
  "tags":["10-15 search tags people really type, most specific first"],
  "hashtags":["3-5 hashtags without #"],
  "thumb_text":"2-5 BIG words for the thumbnail, one *highlighted*, <=30 chars, e.g. 'RAG in *5 minutes*'",
  "thumb_icon":"one icon name",
- "scenes":[{"say":"what Thoma says, 1-3 short sentences, <=55 words","pose":"talk","visual":{...}}]}
-pose is one of: talk, point (at the visual), think, wave (first or last scene only)."""
+ "scenes":[{"say":"what Thoma says, 1-2 short sentences, <=40 words","mood":"talk","visual":{...}}]}
+mood is one of: talk, point, think, wow, laugh, wave (wave only in the first or last scene).
+Use think before a question, wow on a surprising fact, laugh right after a joke.
+In "say" you may use at most 3 delivery tags per video: <laugh>, <short pause>, <sigh>."""
 
 RESEARCH_SYSTEM = """You prepare research notes for a beginner tech explainer. From the source
 material, extract what is true and useful: key concepts, how it works step by step, concrete
@@ -46,7 +65,8 @@ Write neutral notes in your own words, never copy sentences. Reply as JSON:
 
 REVIEW_SYSTEM = """You are a strict editor for a beginner tech channel. Check the script for:
 1. accuracy: anything false, misleading or outdated about the technology;
-2. clarity: any term used before it is explained, or a jump a beginner cannot follow;
+2. clarity: any term used before it is explained, jargon a curious 15-year-old wouldn't know (in speech
+   or on-screen text), or a jump a beginner cannot follow;
 3. tone: anything condescending, hype-y, or salesy;
 4. visuals: a visual that does not match what is said in that scene.
 Only list real problems, each pointing at the scene number. Reply as JSON:
@@ -76,8 +96,12 @@ def gates(script: dict, kind: str, idea) -> list[str]:
     if not scenes:
         return ["no scenes"]
     n = words(script)
-    if not f["words"][0] <= n <= f["words"][1]:
-        p.append(f"total spoken words is {n}; must be {f['words'][0]}-{f['words'][1]}")
+    lo, hi = f["words"]
+    if not lo <= n <= hi:
+        per_scene = ", ".join(f"{i}:{len(sc.get('say', '').split())}" for i, sc in enumerate(scenes, 1))
+        change = f"cut at least {n - hi}" if n > hi else f"add at least {lo - n}"
+        p.append(f"total spoken words is {n}, allowed {lo}-{hi}: {change} words. Words per scene now: "
+                 f"{per_scene}. Shorten the longest scenes; don't just drop the ending.")
     if not f["scenes"][0] <= len(scenes) <= f["scenes"][1]:
         p.append(f"{len(scenes)} scenes; must be {f['scenes'][0]}-{f['scenes'][1]}")
     title = script.get("title", "")
@@ -96,12 +120,12 @@ def gates(script: dict, kind: str, idea) -> list[str]:
         p.append("scene 1 visual cannot be 'keep'")
     if (scenes[-1].get("visual") or {}).get("type") != "takeaway":
         p.append("last scene visual must be type 'takeaway'")
-    if "see you at the board" not in scenes[-1]["say"].lower():
-        p.append("last line must end with the sign-off '... see you at the board.'")
+    if f["signoff"] not in scenes[-1]["say"].lower():
+        p.append("the last line must end with the sign-off 'Thoma out!'")
     kinds = []
     for i, s in enumerate(scenes, 1):
-        if len(s.get("say", "").split()) > 55:
-            p.append(f"scene {i}: say is over 55 words, split it")
+        if len(s.get("say", "").split()) > 40:
+            p.append(f"scene {i}: say is over 40 words, split it")
         v = s.get("visual") or {}
         t = v.get("type")
         kinds.append(t)
@@ -119,6 +143,15 @@ def gates(script: dict, kind: str, idea) -> list[str]:
         for node in v.get("nodes") or []:
             if isinstance(node, dict) and len(node.get("label", "")) > 22:
                 p.append(f"scene {i}: node label '{node['label']}' over 22 chars")
+    run, start = 0, 1
+    for i, s in enumerate(scenes, 1):  # words spoken over one visual (keep scenes extend it)
+        if (s.get("visual") or {}).get("type") != "keep":
+            run, start = 0, i
+        run += len(s.get("say", "").split())
+        if run > f["max_per_visual"]:
+            p.append(f"scenes {start}-{i}: one visual covers {run} spoken words; change the visual at least "
+                     f"every {f['max_per_visual']} words (about 10 seconds) so the screen keeps moving")
+            break
     rich = sum(1 for k in kinds if k in ("diagram", "steps", "compare", "analogy", "code", "stat"))
     if rich < (2 if kind == "short" else 6):
         p.append("too few real visuals: use more diagrams, steps, compares, analogies")
@@ -169,10 +202,27 @@ def research(idea) -> str:
     return notes
 
 
+def pick_short_format(idea) -> str:
+    """Weighted rotation from config, never the same format twice in a row; 'news' only for fresh ideas."""
+    import random
+    from .config import cfg
+    weights = dict(cfg().get("short_formats", {"explainer": 1}))
+    if idea["source"] in ("evergreen", "owner") or (idea["priority"] or 0) < 3:
+        weights.pop("news", None)
+    with db.conn() as c:
+        last = c.execute("SELECT script FROM videos WHERE kind='short' AND script IS NOT NULL ORDER BY id DESC LIMIT 1").fetchone()
+    if last and len(weights) > 1:
+        weights.pop(json.loads(last["script"]).get("format"), None)
+    return random.choices(list(weights), weights=list(weights.values()))[0]
+
+
 def write(idea, kind: str) -> dict:
-    system = f"{CHARACTER}\n\n# Format\n{FORMATS[kind]['spec']}\n\n{visuals.SPEC}\n\n{SCRIPT_SHAPE}"
+    fmt = pick_short_format(idea) if kind == "short" else "tutorial"
+    spec = FORMATS[kind]["spec"] + ("\n" + SHORT_FORMATS[fmt] if kind == "short" else "")
+    system = f"{CHARACTER}\n\n# Format\n{spec}\n\n{visuals.SPEC}\n\n{SCRIPT_SHAPE}"
     lo, hi = FORMATS[kind]["words"]
-    brief = f"Topic: {idea['topic']}\nWord budget: {lo}-{hi} spoken words in total across all scenes.\n"
+    brief = (f"Topic: {idea['topic']}\nWord budget: aim for {FORMATS[kind]['target']} spoken words in total "
+             f"(hard limits {lo}-{hi}). Count them before replying.\n")
     if idea["angle"]:
         brief += f"Suggested analogy (use it or find a better one): {idea['angle']}\n"
     if idea["source_title"]:
@@ -186,7 +236,7 @@ def write(idea, kind: str) -> dict:
         brief += "\nRecent hooks (do NOT open the same way):\n" + "\n".join(f"- {h}" for h in hooks) + "\n"
 
     script, problems, reviewed = None, [], False
-    for attempt in range(4):
+    for attempt in range(5):
         prompt = brief
         if script is not None:
             prompt += (f"\nYour previous draft:\n{json.dumps(script, ensure_ascii=False)}\n\n"
@@ -198,6 +248,7 @@ def write(idea, kind: str) -> dict:
         if problems:
             log.info("draft %d failed gates: %s", attempt + 1, problems)
             continue
+        script["format"] = fmt
         if reviewed:
             return script
         review = llm.ask_json(REVIEW_SYSTEM, json.dumps(script, ensure_ascii=False), "review")
@@ -206,4 +257,4 @@ def write(idea, kind: str) -> dict:
         if not problems:
             return script
         log.info("review asked for fixes: %s", problems)
-    raise ValueError("script failed checks after 4 drafts: " + "; ".join(problems))
+    raise ValueError("script failed checks after 5 drafts: " + "; ".join(problems))

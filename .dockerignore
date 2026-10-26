@@ -1,0 +1,11 @@
+.git
+.venv
+.env
+data/
+out/
+secrets/
+assets/models/
+assets/music/*.mp3
+thoma-backup-*.tar.gz
+__pycache__/
+*.pyc

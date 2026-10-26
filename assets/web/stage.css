@@ -88,8 +88,5 @@ svg.edges { position: absolute; inset: 0; overflow: visible; }
 #captions .w { display: inline-block; margin: 0 0.14em; }
 #captions .on { color: var(--amber); transform: scale(1.08); }
 
-/* Thoma */
-#thoma { position: absolute; z-index: 4; }
-#thoma img { position: absolute; bottom: 0; left: 0; width: 100%; }
-#thoma .glow { position: absolute; left: 10%; right: 10%; bottom: -30px; height: 90px; border-radius: 50%;
-               background: radial-gradient(ellipse, rgba(34,211,238,0.35), transparent 70%); }
+/* Thoma the imp (drawn by mascot.js) */
+#thoma { position: absolute; z-index: 8; transform-origin: 50% 100%; }

@@ -9,7 +9,7 @@ const col = (i) => `var(${COLORS[i % COLORS.length]})`;
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const hex = (i) => css(COLORS[i % COLORS.length]);
 
-let D, tl, tickers = [], thomaImg, lastKey = -1, capEl, lastCap = "";
+let D, tl, tickers = [], mascot, capEl, lastCap = "";
 
 function h(tag, cls, parent, styles = {}, html = "") {
   const e = document.createElement(tag);
@@ -153,7 +153,7 @@ function layoutNodes(v, box, top, portrait) {
   const rects = [];
   if (layout === "row") {
     const gap = Math.max(70, area.w * 0.07);
-    const w = Math.min(290, (area.w - gap * (n - 1)) / n), hh = Math.min(w * 0.9, area.h * 0.8);
+    const w = Math.min(portrait ? 290 : 340, (area.w - gap * (n - 1)) / n), hh = Math.min(w * 0.85, area.h * 0.8);
     const x0 = (area.w - (w * n + gap * (n - 1))) / 2;
     for (let i = 0; i < n; i++) rects.push({ x: x0 + i * (w + gap), y: area.y + (area.h - hh) / 2, w, h: hh });
   } else if (layout === "stack") {
@@ -168,8 +168,8 @@ function layoutNodes(v, box, top, portrait) {
     for (let i = 0; i < n; i++) rects.push({ x: x0 + (i % cols) * (w + gap), y: y0 + Math.floor(i / cols) * (hh + gap), w, h: hh });
   } else { // hub or cycle
     const cx = area.w / 2, cy = area.y + area.h / 2;
-    const rx = area.w * (portrait ? 0.33 : 0.36), ry = area.h * 0.36;
-    const w = Math.min(portrait ? 270 : 240, area.w * 0.27), hh = w * 0.8;
+    const rx = area.w * (portrait ? 0.29 : 0.38), ry = area.h * (portrait ? 0.32 : 0.34);
+    const w = Math.min(portrait ? 340 : 300, area.w * (portrait ? 0.38 : 0.27)), hh = w * (portrait ? 0.7 : 0.75);
     const ring = layout === "hub" ? n - 1 : n;
     if (layout === "hub") rects.push({ x: cx - w * 0.6, y: cy - hh * 0.6, w: w * 1.2, h: hh * 1.2 });
     for (let i = 0; i < ring; i++) {
@@ -443,12 +443,10 @@ window.load = async (data) => {
     if (i < D.blocks.length - 1) tl.to(scene, { opacity: 0, y: -40, scale: 1.02, duration: 0.3, ease: "power2.in" }, blk.end - 0.3);
   });
 
-  const th = h("div", "", frame, { left: L.thoma.x + "px", top: L.thoma.y + "px", width: L.thoma.w + "px", height: L.thoma.h + "px" });
+  const th = h("div", "", frame, { left: L.thoma.x + "px", top: L.thoma.y + "px" });
   th.id = "thoma";
-  h("div", "glow", th);
-  thomaImg = h("img", "", th);
-  tl.fromTo(th, { y: 300 }, { y: 0, duration: 0.6, ease: "back.out(1.4)" }, 0);
-  window._thoma = th;
+  mascot = buildMascot(th, L.thoma.w);
+  tl.fromTo(th, { y: 260, scale: 0.4 }, { y: 0, scale: 1, duration: 0.7, ease: "back.out(1.8)" }, 0.1);
 
   if (D.captions && D.captions.length) {
     capEl = h("div", "", frame, { top: L.captions_y + "px", fontSize: L.caption_size + "px" });
@@ -461,10 +459,11 @@ window.load = async (data) => {
 window.seek = (t) => {
   tl.seek(t, false);
   tickers.forEach(f => f(t));
-  const fi = Math.min(Math.floor(t * D.fps), D.thoma.frames.length - 1);
-  const [k, bob] = D.thoma.frames[fi];
-  if (k !== lastKey) { thomaImg.src = D.thoma.sprites[k]; lastKey = k; }
-  thomaImg.style.transform = `translateY(${bob}px)`;
+  const M = D.thoma, fi = Math.min(Math.floor(t * D.fps), M.mouth.length - 1);
+  let mood = "talk", since = 0;
+  for (const [mt, mm] of M.moods) { if (mt <= t) { mood = mm; since = mt; } else break; }
+  const blink = M.blinks.some(b => t >= b && t < b + 0.13);
+  mascot.update(t, M.mouth[fi], mood, M.mouth[fi] > 0, blink, t - since);
   if (capEl) {
     const g = D.captions.find(c => t >= c.start && t < c.end);
     let key = "";

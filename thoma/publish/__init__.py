@@ -11,7 +11,10 @@ def caption(script: dict, kind: str, platform: str) -> str:
     chapters = ""
     if platform == "youtube" and script.get("chapters"):
         chapters = "\n".join(f"{int(t // 60)}:{int(t % 60):02} {name}" for t, name in script["chapters"]) + "\n\n"
-    return f"{script['description']}\n\n{chapters}{tags}\n\n{DISCLOSURE}"
+    credit = ""
+    if script.get("music"):
+        credit = cfg()["music"]["credit"].format(track=script["music"]) + "\n"
+    return f"{script['description']}\n\n{chapters}{tags}\n\n{credit}{DISCLOSURE}"
 
 
 def platforms_for(kind: str) -> list[str]:

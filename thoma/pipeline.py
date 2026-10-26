@@ -1,9 +1,12 @@
 """The production line and the scheduler that runs it.
 
-make()     idea -> script -> render -> 'ready'
-publish()  'approved' (or 'ready' with auto_publish) -> every platform
-tick()     one scheduler pass: refresh ideas, read owner replies, make what is
-           due, publish into the next slot. The daemon calls it every few minutes.
+make()      idea -> script -> render -> 'ready'
+schedule()  'approved' (or 'ready' in auto mode) -> uploaded now, released at its slot
+tick()      one scheduler pass: read owner replies, refresh ideas, make videos for the
+            slots coming up in the next plan_ahead_hours, schedule finished ones.
+
+Built for a machine that is only on part of the day (e.g. overnight): videos are made
+ahead and uploaded with a release time, and YouTube publishes them at that time by itself.
 """
 import fcntl
 import json
@@ -29,12 +32,6 @@ def local_now() -> datetime:
 def _hm(s: str):
     h, m = s.split(":")
     return int(h) * 60 + int(m)
-
-
-def quiet(now: datetime) -> bool:
-    start, end = (_hm(x) for x in cfg()["schedule"]["quiet_hours"])
-    t = now.hour * 60 + now.minute
-    return (start <= t or t < end) if start > end else (start <= t < end)
 
 
 def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> int:
@@ -64,29 +61,72 @@ def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> i
     except Exception as e:
         db.update_video(vid, status="failed", error=str(e)[:1000])
         raise
-    if not cfg()["publish"]["auto_publish"]:
-        mid = notify.send_file(path, f"#{vid} {kind} ready: {script['title']}\nReply /approve {vid} or /reject {vid}")
-        db.set_kv(f"telegram_msg:{vid}", mid)
+    if cfg()["publish"]["mode"] == "approve":
+        note = f"Reply /approve {vid} or /reject {vid}"
+    else:
+        note = f"It gets the next free slot automatically. /reject {vid} to drop it"
+    mid = notify.send_file(path, f"#{vid} {kind} ready: {script['title']}\n{note}")
+    db.set_kv(f"telegram_msg:{vid}", mid)
     return vid
 
 
-def publish(video_id: int) -> bool:
-    """Upload to every platform for its kind. Platforms that already succeeded are skipped,
-    so calling this again retries only the failures. Returns True when all are done."""
+def slots(kind: str, after: datetime, hours: float) -> list[datetime]:
+    """Posting times (local) for this kind between `after` and `after + hours`."""
+    sc = cfg()["schedule"]
+    days = sc.get("long_days", DAYS) if kind == "long" else DAYS
+    out, day = [], after.replace(hour=0, minute=0, second=0, microsecond=0)
+    while day <= after + timedelta(hours=hours):
+        if DAYS[day.weekday()] in days:
+            for hm in sc["publish_times"][kind]:
+                t = day + timedelta(minutes=_hm(hm))
+                if after < t <= after + timedelta(hours=hours):
+                    out.append(t)
+        day += timedelta(days=1)
+    return sorted(out)
+
+
+def _taken(kind: str) -> set[str]:
+    with db.conn() as c:
+        return {r[0] for r in c.execute("SELECT publish_at FROM videos WHERE kind=? AND publish_at IS NOT NULL"
+                                        " AND status IN ('scheduled','published')", (kind,))}
+
+
+def _when(t: datetime) -> str:
+    return t.strftime("%a %d %b, %H:%M")
+
+
+def schedule(video_id: int, at: datetime | None = None) -> bool:
+    """Upload a finished video now with its release time (the next free slot unless `at` is given).
+    YouTube publishes it at that time by itself; Telegram gets the file and caption for Instagram /
+    Facebook. Platforms already done are skipped, so calling it again retries only failures."""
     from .publish import meta, platforms_for, telegram, youtube
     v = db.video(video_id)
     script, path = json.loads(v["script"]), Path(v["path"])
+    now = local_now()
+    if at is None and v["publish_at"]:
+        at = datetime.fromisoformat(v["publish_at"])
+    if at is None:
+        free = [t for t in slots(v["kind"], now + timedelta(minutes=30), 24 * 14)
+                if t.isoformat() not in _taken(v["kind"])]
+        if not free:
+            return False
+        at = free[0]
+    tz = ZoneInfo(cfg()["channel"]["timezone"])
+    release = at.replace(tzinfo=tz) if at > now + timedelta(minutes=5) else None  # None = public right away
+    db.update_video(video_id, publish_at=at.isoformat(), status="scheduled")
     with db.conn() as c:
         done = {r["platform"]: r for r in c.execute("SELECT * FROM uploads WHERE video_id=?", (video_id,))}
     ok = True
     for platform in platforms_for(v["kind"]):
         if platform in done and done[platform]["status"] == "ok":
             continue
+        if platform in ("instagram", "facebook") and release:
+            continue  # posted by publish_due() at the slot itself, if this machine is on then
         try:
             if platform == "youtube":
-                res = youtube.upload(path, script, v["kind"], public=True)
+                res = youtube.upload(path, script, v["kind"], release)
             elif platform == "telegram":
-                res = telegram.share(path, script, v["kind"], video_id)
+                res = telegram.share(path, script, v["kind"], video_id, f"at {_when(at)}" if release else "now")
             else:
                 res = meta.upload(platform, path, script, v["kind"])
             row = (video_id, platform, "ok", res["remote_id"], res["url"], None, db.now())
@@ -99,10 +139,59 @@ def publish(video_id: int) -> bool:
     with db.conn() as c:
         links = [f"{r['platform']}: {r['url'] or r['error']}" for r in
                  c.execute("SELECT * FROM uploads WHERE video_id=?", (video_id,))]
-    if ok:
-        db.update_video(video_id, status="published")
-    notify.send(f"#{video_id} {'published' if ok else 'partly published'}: {v['title']}\n" + "\n".join(links))
+    tip = ""
+    if release and not cfg()["publish"].get("youtube_audited", False):
+        tip = (f"\nUntil Google approves the API audit, set the time yourself: YouTube Studio app -> "
+               f"this video -> Visibility -> Schedule -> {_when(at)}.")
+    notify.send(f"#{video_id} scheduled for {_when(at)}: {v['title']}\n" + "\n".join(links) + tip)
     return ok
+
+
+def publish_due():
+    """Mark released videos as published, and post to direct-API platforms whose slot has come."""
+    from .publish import meta, platforms_for
+    now = local_now()
+    with db.conn() as c:
+        due = c.execute("SELECT id FROM videos WHERE status='scheduled' AND publish_at <= ?",
+                        (now.isoformat(),)).fetchall()
+    for r in due:
+        v = db.video(r["id"])
+        with db.conn() as c:
+            done = {u["platform"]: u["status"] for u in c.execute("SELECT * FROM uploads WHERE video_id=?", (v["id"],))}
+        for platform in platforms_for(v["kind"]):
+            if platform in ("instagram", "facebook") and done.get(platform) != "ok":
+                try:
+                    res = meta.upload(platform, Path(v["path"]), json.loads(v["script"]), v["kind"])
+                    row = (v["id"], platform, "ok", res["remote_id"], res["url"], None, db.now())
+                except Exception as e:
+                    log.exception("upload to %s failed", platform)
+                    row = (v["id"], platform, "failed", None, None, str(e)[:500], db.now())
+                with db.conn() as c:
+                    c.execute("INSERT OR REPLACE INTO uploads VALUES (?,?,?,?,?,?,?)", row)
+        with db.conn() as c:
+            failed = c.execute("SELECT COUNT(*) FROM uploads WHERE video_id=? AND status!='ok'", (v["id"],)).fetchone()[0]
+        if not failed:
+            db.update_video(v["id"], status="published")
+
+
+def _schedule_ready():
+    states = ("approved",) if cfg()["publish"]["mode"] == "approve" else ("approved", "ready")
+    with db.conn() as c:
+        waiting = c.execute(f"SELECT id FROM videos WHERE status IN ({','.join('?' * len(states))}) ORDER BY id",
+                            states).fetchall()
+        retry = c.execute("SELECT DISTINCT u.video_id FROM uploads u JOIN videos v ON v.id=u.video_id"
+                          " WHERE u.status='failed' AND v.status='scheduled'").fetchall()
+    for r in [*waiting, *retry]:
+        schedule(r[0])
+
+
+def _cancel_youtube(vid: int):
+    from .publish import youtube
+    with db.conn() as c:
+        row = c.execute("SELECT remote_id FROM uploads WHERE video_id=? AND platform='youtube' AND status='ok'",
+                        (vid,)).fetchone()
+    if row:
+        youtube.unschedule(row[0])
 
 
 def _handle_owner_replies():
@@ -111,9 +200,11 @@ def _handle_owner_replies():
         v = db.video(vid) if vid else None
         if cmd == "approve" and v and v["status"] == "ready":
             db.update_video(vid, status="approved")
-            notify.send(f"#{vid} approved, goes out in the next slot.")
-        elif cmd == "reject" and v and v["status"] in ("ready", "approved"):
-            db.update_video(vid, status="rejected", error=arg)
+            notify.send(f"#{vid} approved; it goes into the next free slot.")
+        elif cmd == "reject" and v and v["status"] in ("ready", "approved", "scheduled"):
+            if v["status"] == "scheduled":
+                _cancel_youtube(vid)
+            db.update_video(vid, status="rejected", error=arg, publish_at=None)
             notify.send(f"#{vid} rejected.")
         elif cmd == "topic" and arg:
             notify.send(f"Got it: '{arg}' is next in line (idea #{ideas.add_topic(arg)}).")
@@ -124,57 +215,21 @@ def _handle_owner_replies():
             notify.send(f"Studio {cmd}d.")
 
 
-def _made(kind: str, since: datetime) -> int:
-    with db.conn() as c:
-        return c.execute("SELECT COUNT(*) FROM videos WHERE kind=? AND status NOT IN ('failed','rejected')"
-                         " AND created >= ?", (kind, since.isoformat())).fetchone()[0]
-
-
-def _failed_today(kind: str, today: datetime) -> int:
-    with db.conn() as c:
-        return c.execute("SELECT COUNT(*) FROM videos WHERE kind=? AND status='failed' AND created >= ?",
-                         (kind, today.isoformat())).fetchone()[0]
-
-
 def _due_kind(now: datetime) -> str | None:
-    s = cfg()["schedule"]
-    # created timestamps are machine-local; compare against machine-local midnight
+    """Make videos for the slots coming up that nothing is lined up for yet."""
+    sc = cfg()["schedule"]
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    week = today - timedelta(days=today.weekday())
-    if DAYS[now.weekday()] in s["long_days"] and _made("long", today) == 0 \
-            and _made("long", week) < s["longs_per_week"] and _failed_today("long", today) < 2:
-        return "long"
-    if _made("short", today) < s["shorts_per_day"] and _failed_today("short", today) < 3:
-        return "short"
+    for kind, max_fail in (("long", 2), ("short", 3)):
+        upcoming = len(slots(kind, now, sc.get("plan_ahead_hours", 36)))
+        with db.conn() as c:
+            lined_up = c.execute("SELECT COUNT(*) FROM videos WHERE kind=? AND (status IN ('writing','rendering',"
+                                 "'ready','approved') OR (status='scheduled' AND publish_at > ?))",
+                                 (kind, now.isoformat())).fetchone()[0]
+            failed = c.execute("SELECT COUNT(*) FROM videos WHERE kind=? AND status='failed' AND created >= ?",
+                               (kind, today.isoformat())).fetchone()[0]
+        if lined_up < upcoming and failed < max_fail:
+            return kind
     return None
-
-
-def _publish_due(now: datetime):
-    auto = cfg()["publish"]["auto_publish"]
-    for kind, slots in cfg()["schedule"]["publish_times"].items():
-        for slot in slots:
-            key = f"slot:{now.date()}:{kind}:{slot}"
-            mins_late = now.hour * 60 + now.minute - _hm(slot)
-            if mins_late < 0 or db.get_kv(key):
-                continue
-            if mins_late > 180:  # missed it (machine was off); don't post at odd hours
-                db.set_kv(key, "missed")
-                continue
-            states = ("approved", "ready") if auto else ("approved",)
-            with db.conn() as c:
-                v = c.execute(f"SELECT id FROM videos WHERE kind=? AND status IN ({','.join('?' * len(states))})"
-                              " ORDER BY id LIMIT 1", (kind, *states)).fetchone()
-            if v:
-                db.set_kv(key, v["id"])
-                publish(v["id"])
-    # retry partial uploads from earlier slots
-    with db.conn() as c:
-        retry = [r[0] for r in c.execute(
-            "SELECT DISTINCT video_id FROM uploads WHERE status='failed' AND created >= ?",
-            ((datetime.now() - timedelta(days=1)).isoformat(),))]
-    for vid in retry:
-        if db.video(vid)["status"] != "published":
-            publish(vid)
 
 
 def cleanup():
@@ -208,18 +263,19 @@ def tick():
     now = local_now()
     _handle_owner_replies()
     cleanup()
-    if db.get_kv("paused") or quiet(now):
+    if db.get_kv("paused"):
         return
     try:
+        publish_due()
+        _schedule_ready()
         last = db.get_kv("ideas_refreshed")
         if not last or datetime.fromisoformat(last) < datetime.now() - timedelta(hours=cfg()["sources"]["refresh_hours"]):
             ideas.refresh()
-        _publish_due(now)
         kind = _due_kind(now)
         if kind:
             vid = make(kind)
             log.info("made #%d (%s)", vid, kind)
-            _publish_due(local_now())
+            _schedule_ready()
     except AllProvidersFailed as e:
         log.warning("no LLM available right now, will retry next tick: %s", e)
     except Exception as e:
@@ -229,11 +285,12 @@ def tick():
 
 def status_text() -> str:
     with db.conn() as c:
-        rows = c.execute("SELECT id, kind, status, title FROM videos ORDER BY id DESC LIMIT 12").fetchall()
+        rows = c.execute("SELECT id, kind, status, title, publish_at FROM videos ORDER BY id DESC LIMIT 12").fetchall()
         n_ideas = c.execute("SELECT COUNT(*) FROM ideas WHERE status='new'").fetchone()[0]
     benched = {k: v for k, v in db.get_kv("llm_benched", {}).items()
                if v > datetime.now().timestamp()}
     lines = [f"ideas waiting: {n_ideas}   paused: {bool(db.get_kv('paused'))}",
              f"LLM providers cooling down: {', '.join(benched) or 'none'}"]
-    lines += [f"#{r['id']:<4} {r['kind']:<5} {r['status']:<10} {r['title'][:60]}" for r in rows]
+    lines += [f"#{r['id']:<4} {r['kind']:<5} {r['status']:<10} {(r['publish_at'] or '')[5:16]:<11} {r['title'][:55]}"
+              for r in rows]
     return "\n".join(lines)

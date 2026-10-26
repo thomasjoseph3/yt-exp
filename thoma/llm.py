@@ -15,7 +15,7 @@ import time
 import httpx
 
 from . import db
-from .config import cfg, secret
+from .config import cfg, secrets
 
 log = logging.getLogger("thoma.llm")
 
@@ -51,8 +51,8 @@ def _cli(p: dict, system: str, prompt: str) -> str:
 
 
 def _openai(p: dict, system: str, prompt: str) -> str:
-    key = secret(p["api_key_env"]) if p.get("api_key_env") else "none"
-    if not key:
+    keys = secrets(p["api_key_env"]) if p.get("api_key_env") else ["none"]
+    if not keys:
         raise RuntimeError(f"{p['api_key_env']} is not set")
     body = {
         "model": p["model"],
@@ -60,8 +60,11 @@ def _openai(p: dict, system: str, prompt: str) -> str:
         "temperature": 0.8,
         "response_format": {"type": "json_object"},
     }
-    r = httpx.post(f"{p['base_url'].rstrip('/')}/chat/completions", json=body, timeout=300,
-                   headers={"Authorization": f"Bearer {key}"})
+    for key in keys:  # backup keys take over when one is rate-limited or rejected
+        r = httpx.post(f"{p['base_url'].rstrip('/')}/chat/completions", json=body, timeout=300,
+                       headers={"Authorization": f"Bearer {key}"})
+        if r.status_code not in (401, 403, 429):
+            break
     if r.status_code >= 400:
         raise RuntimeError(f"HTTP {r.status_code}: {r.text[:300]}")
     return r.json()["choices"][0]["message"]["content"]

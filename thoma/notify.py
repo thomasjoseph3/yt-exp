@@ -1,5 +1,7 @@
 """Telegram: send updates and preview videos to the owner, read approve/reject replies."""
 import logging
+import re
+import subprocess
 from pathlib import Path
 
 import httpx
@@ -30,14 +32,34 @@ def send(text: str, reply_to: int | None = None):
     _api("sendMessage", data=data)
 
 
+LIMIT = 48 << 20  # bot uploads max out at 50 MB
+
+
+def _fit(path: Path) -> Path:
+    """A same-resolution copy squeezed under the bot limit (only for files that are too big)."""
+    import imageio_ffmpeg
+    probe = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-i", str(path)], capture_output=True, text=True).stderr
+    h, m, sec = re.search(r"Duration: (\d+):(\d+):([\d.]+)", probe).groups()
+    duration = int(h) * 3600 + int(m) * 60 + float(sec)
+    kbps = int(LIMIT * 8 / duration / 1000 * 0.92) - 128  # leave room for audio and container
+    small = path.with_name(path.stem + "_telegram.mp4")
+    subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-i", str(path),
+                    "-c:v", "libx264", "-preset", "medium", "-tune", "animation", "-b:v", f"{kbps}k",
+                    "-maxrate", f"{kbps * 1.3:.0f}k", "-bufsize", f"{kbps * 2}k", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(small)], check=True)
+    return small
+
+
 def send_file(path: Path, text: str) -> int | None:
     """Send a video as a file, so Telegram keeps the original quality. Returns the message id."""
-    if path.stat().st_size > 49 << 20:  # bot upload limit is 50 MB
-        send(text + f"\n(file is over Telegram's 50 MB bot limit; it is at {path})")
+    if not secret("TELEGRAM_BOT_TOKEN") or not secret("TELEGRAM_CHAT_ID"):
         return None
-    with path.open("rb") as f:
+    to_send = path if path.stat().st_size <= LIMIT else _fit(path)
+    with to_send.open("rb") as f:
         res = _api("sendDocument", data={"chat_id": secret("TELEGRAM_CHAT_ID"), "caption": text[:1000]},
                    files={"document": (path.name, f, "video/mp4")})
+    if to_send != path:
+        to_send.unlink(missing_ok=True)
     if not res or not res.get("ok"):
         send(text)
         return None

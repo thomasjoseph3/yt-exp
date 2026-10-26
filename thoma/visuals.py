@@ -44,11 +44,13 @@ Visual types:
   {"type":"keep"}       (same visual stays; use when the line continues the previous graphic)
   {"type":"takeaway","text":"<=90 chars, with *highlight*"}   (last scene only)
 
-Make it look like a proper animated tech explainer: mostly diagrams, steps, compares and
-analogies; a title or bigtext only to open or to land a punchline; code only when it helps.
-Change the visual every 1-3 lines. Node labels should be words Thoma actually says, so they
-appear on screen as he says them."""
+Make it look like a proper animated tech explainer (think Fireship pace, ByteMonk diagrams):
+mostly diagrams, steps, compares and analogies; a title or bigtext to open or to land a
+punchline; a stat for a striking number; code only when it helps. Change the visual every 1-2
+sentences (every 4-10 seconds) so the screen never sits still. Node labels and list items should
+be words Thoma actually says, so they appear on screen as he says them."""
 
+MAX_GAP = 2.5  # seconds: a new element appears at least this often
 STOP = set("the a an and or of to in on for is are it its this that with as by be at from your you".split())
 
 
@@ -162,6 +164,7 @@ def reveal_times(v: dict, words: list[tuple[str, float, float]], start: float, e
             if hit is not None:
                 break
         t = hit - 0.25 if hit is not None else evenly[k]
+        t = min(t, start + 0.8 + k * MAX_GAP)  # never leave the screen waiting long for a late word
         t = min(max(t, floor), end - 0.4)
         times.append(t)
         floor = t + 0.3

@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <link rel="stylesheet" href="stage.css">
+<script src="mascot.js"></script>
 <style>
   body { width: 1280px; height: 720px; }
   #t { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 25% 30%, #1b2858 0%, #070b18 70%); }
@@ -11,11 +12,11 @@
            font-weight: 900; line-height: 1.0; letter-spacing: -0.03em; text-transform: uppercase; color: #fff;
            paint-order: stroke fill; -webkit-text-stroke: 14px #05070f; }
   #words .hl { color: var(--amber); }
-  #ic { position: absolute; right: 360px; top: 70px; width: 190px; height: 190px; border-radius: 40px; display: flex;
+  #ic { position: absolute; right: 330px; top: 60px; width: 190px; height: 190px; border-radius: 40px; display: flex;
         align-items: center; justify-content: center; color: var(--cyan); background: rgba(34,211,238,0.14);
         border: 3px solid rgba(34,211,238,0.6); box-shadow: 0 0 70px rgba(34,211,238,0.55); transform: rotate(-8deg); }
   #ic svg { width: 62%; height: 62%; stroke-width: 2.2; }
-  #th { position: absolute; right: -40px; bottom: -330px; width: 600px; }
+  #th { position: absolute; right: 30px; bottom: 10px; width: 330px; height: 429px; }
   #brand2 { position: absolute; left: 60px; bottom: 38px; display: flex; gap: 12px; align-items: center; font-weight: 800; font-size: 30px; color: #fff; }
   #brand2 .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 18px var(--amber); }
 </style>
@@ -36,7 +37,7 @@ window.draw = async (d) => {
   inner.style.fontSize = size + "px";
   while (size > 50 && (inner.scrollHeight > 600 || inner.scrollWidth > 760)) { size -= 4; inner.style.fontSize = size + "px"; }
   document.getElementById("ic").innerHTML = d.icon;
-  document.getElementById("th").src = d.thoma;
+  buildMascot(document.getElementById("th"), 330).update(0.3, 3, "wow", false, false, 0);
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 };
 </script>
@@ -47,7 +48,7 @@ window.draw = async (d) => {
   <div class="blob" style="right:-250px; bottom:-300px; background: var(--cyan)"></div>
   <div id="words"></div>
   <div id="ic"></div>
-  <img id="th">
+  <div id="th"></div>
   <div id="brand2"><span class="dot"></span>Thoma Explains</div>
 </div>
 </body>
