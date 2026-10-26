@@ -1,0 +1,49 @@
+# One beginner topic per line. Used when the source channels have nothing new.
+What is artificial intelligence, really?
+What is machine learning?
+What is a large language model?
+What is a token in AI?
+What is a neural network?
+What is deep learning?
+What is a prompt, and why does wording matter?
+What is RAG (retrieval augmented generation)?
+What is an AI agent?
+What is fine-tuning?
+What are embeddings?
+What is a vector database?
+Why do AI models hallucinate?
+What is a context window?
+What is generative AI?
+What is a GPU and why does AI need it?
+What is the cloud?
+What is an API?
+What is open source AI?
+What is AI inference vs training?
+What is computer vision?
+What is natural language processing?
+What is supervised vs unsupervised learning?
+What is reinforcement learning?
+What is a transformer model?
+What is attention in AI?
+What is AI bias?
+What is prompt injection?
+What is MCP (Model Context Protocol)?
+What is quantization in AI models?
+What is a small language model?
+What is multimodal AI?
+What is synthetic data?
+What is an AI model's temperature setting?
+What is a chatbot vs an AI agent?
+What is data labeling?
+What is overfitting?
+What is a recommendation system?
+What is cybersecurity phishing, and how does AI change it?
+What is Kubernetes, in plain words?
+What is a database?
+What is encryption?
+What is a large context window good for?
+What is chain-of-thought reasoning?
+What is a knowledge graph?
+What is edge AI?
+What is an AI model benchmark?
+What is AI governance?

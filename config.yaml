@@ -1,0 +1,99 @@
+# Thoma Studio settings. Secrets go in .env, never here.
+
+channel:
+  name: "Thoma Explains"
+  timezone: "Asia/Kolkata"
+
+# LLM providers, tried in order. If one fails (limit reached, offline, bad key)
+# the next one is used and the switch is logged. Remove or reorder freely.
+#   claude_cli : your Claude subscription through the `claude -p` command
+#   cli        : any coding-agent CLI that takes a prompt on stdin and prints the answer (Qoder CLI)
+#   openai     : any OpenAI-compatible API (Gemini free tier, Groq, OpenRouter, Ollama)
+llm:
+  providers:
+    - name: qoder                      # first choice: uses your Qoder credits
+      type: cli
+      command: ["qodercli", "-p"]       # npm i -g @qoder-ai/qodercli ; then `qodercli` and /login once
+    - name: claude                     # backup: your Claude subscription
+      type: claude_cli
+      model: sonnet
+    - name: gemini
+      type: openai
+      base_url: https://generativelanguage.googleapis.com/v1beta/openai
+      model: gemini-2.5-flash          # pick any current free model from aistudio.google.com
+      api_key_env: GEMINI_API_KEY
+    - name: groq
+      type: openai
+      base_url: https://api.groq.com/openai/v1
+      model: llama-3.3-70b-versatile
+      api_key_env: GROQ_API_KEY
+    - name: ollama
+      type: openai
+      base_url: http://localhost:11434/v1
+      model: llama3.1:8b               # local and free, but weaker writing
+      api_key_env: ""
+  # After a provider fails, skip it for this many minutes before trying it again.
+  cooldown_minutes: 60
+
+# Where ideas come from. These channels are mined for topics and facts only: Thoma
+# never reuses their words, visuals or audio (writer.py blocks copied phrasing).
+sources:
+  youtube_channels:
+    - name: IBM Technology
+      channel_id: UCKWaEZ-_VweaEx1j62do_vQ
+    - name: ByteMonk
+      channel_id: UCzCsyvyrq38R6TnztEzOmgg
+    - name: Fireship
+      channel_id: UCsBjURrPoezykLs9EqgamOA
+  refresh_hours: 6
+
+# How much to make and when it goes out (local time, see channel.timezone).
+schedule:
+  shorts_per_day: 2
+  longs_per_week: 7
+  long_days: [mon, tue, wed, thu, fri, sat, sun]
+  publish_times:
+    short: ["09:30", "18:30"]
+    long: ["17:00"]
+  # Nothing is made or published between these hours.
+  quiet_hours: ["23:00", "07:00"]
+  tick_minutes: 15
+
+publish:
+  # false: videos wait in the queue until you run `thoma approve <id>`.
+  # true : fully hands-off. Turn on once you trust the output (after ~2 weeks).
+  auto_publish: false
+  # youtube | instagram | facebook | telegram
+  # "telegram" sends you the full-quality file plus a ready-to-copy caption, for posting
+  # to Instagram/Facebook by hand. Swap it for instagram/facebook once Meta is set up.
+  short_platforms: [youtube, telegram]
+  long_platforms: [youtube, telegram]
+  youtube_category: "27"               # Education
+  graph_api_version: v26.0             # Meta Graph API; bump when Meta deprecates it
+
+voice:
+  # Thoma's own voice: a blend of two free Kokoro voices, so nobody else sounds like him.
+  blend: {bm_george: 0.6, am_michael: 0.4}
+  speed: 0.95
+  # Spelling fixes so the voice says terms right: written form -> spoken form.
+  say_as:
+    "LLMs": "L L Ms"
+    "LLM": "L L M"
+    "RAG": "rag"
+    "GPU": "G P U"
+    "GPUs": "G P Us"
+    "API": "A P I"
+    "APIs": "A P Is"
+    "SQL": "sequel"
+    "JSON": "jason"
+    "AI": "A I"
+
+# Disk housekeeping (runs every tick). Long videos stay as your copy; Shorts live on Telegram.
+storage:
+  keep_long_days: 14        # long video files are deleted after this many days
+  keep_failed_days: 3       # failed / rejected videos
+  delete_published_shorts: true
+
+video:
+  fps: 25
+  music_volume: 0.08                   # drop CC0/CC-BY tracks into assets/music/ to enable

@@ -1,0 +1,18 @@
+{"title": "What is RAG? AI Explained Simply",
+ "description": "Why do chatbots make things up, and how does RAG fix it? Thoma explains retrieval augmented generation with an open-book exam.",
+ "tags": ["what is rag", "retrieval augmented generation", "ai explained", "llm for beginners"],
+ "hashtags": ["AI", "RAG", "LearnAI"],
+ "thumb_text": "What is *RAG*?", "thumb_icon": "book-open",
+ "scenes": [
+  {"say": "Why does a chatbot confidently make things up?", "pose": "think",
+   "visual": {"type": "title", "text": "Why do chatbots *make things up*?", "icon": "bot"}},
+  {"say": "Because it answers from memory, like a student in a closed-book exam. If it never learned the answer, it guesses.", "pose": "talk",
+   "visual": {"type": "analogy", "left": {"label": "Closed-book exam", "icon": "graduation-cap"}, "right": {"label": "A plain LLM", "icon": "brain"}, "note": "Answers only from *memory*"}},
+  {"say": "RAG gives it an open book. First, your question goes to a search step. It finds the right documents. Then the model writes the answer using them.", "pose": "talk",
+   "visual": {"type": "diagram", "heading": "RAG in *3 steps*", "layout": "row", "nodes": [{"id": "q", "label": "Question", "icon": "message-square"}, {"id": "s", "label": "Search", "icon": "search"}, {"id": "d", "label": "Documents", "icon": "files"}, {"id": "m", "label": "Model", "icon": "brain"}], "highlight": "d"}},
+  {"say": "So the answer is based on real text, not a guess.", "pose": "point", "visual": {"type": "keep"}},
+  {"say": "Here's the code version: search first, then ask.", "pose": "talk",
+   "visual": {"type": "code", "lang": "python", "lines": ["docs = search(question)", "prompt = question + docs", "answer = llm(prompt)"], "output": ["Answer with sources ✓"]}},
+  {"say": "So remember: RAG means look it up first, then answer. See you at the board.", "pose": "wave",
+   "visual": {"type": "takeaway", "text": "RAG = *look it up first*, then answer."}}
+ ]}
