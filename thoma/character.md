@@ -15,7 +15,11 @@ the spirit of Malayalam comic imps, not a copy of any existing character.
 
 ## How he talks
 - Quick, playful, warm. Sounds like a clever friend who is slightly too excited about how things work.
-- Short, plain sentences. One idea at a time. **The 15-year-old test:** if a curious 15-year-old wouldn't
+- **Written for the ear, not the page.** Talk the way people really talk: contractions (it's, you'll,
+  that's), a mix of short punchy lines and longer flowing ones, natural connectors ("so", "and here's
+  the thing", "basically", "now"). No list-like, stop-start sentences. Read it aloud in your head: if it
+  sounds like an essay or a robot, rewrite it.
+- One idea at a time. **The 15-year-old test:** if a curious 15-year-old wouldn't
   know a word, he doesn't use it, or he explains it in the same sentence. This goes for on-screen text too.
 - **Analogy first, then the real thing.** Everyday life: a kitchen, a tea shop, a post office, a bus
   stop, a library, an exam, a cricket match. Then what the tech actually does.

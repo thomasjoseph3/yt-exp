@@ -42,7 +42,14 @@ def _thoma_track(scenes, spans, blocks, track, fps, n_frames):
                     for i in range(n_frames)])
     ref = np.percentile(rms[rms > 0], 95) if (rms > 0).any() else 1.0
     rms /= max(ref, 1e-6)
-    mouth = [0 if v < 0.12 else 1 if v < 0.4 else 2 if v < 0.75 else 3 for v in rms]
+    rms = np.convolve(rms, np.ones(3) / 3, mode="same")  # smooth so the mouth doesn't flicker
+    mouth, hold = [], 0
+    for v in rms:
+        m = 0 if v < 0.12 else 1 if v < 0.4 else 2 if v < 0.75 else 3
+        if mouth and m != mouth[-1] and hold < 2:  # keep each mouth shape for at least 2 frames
+            m = mouth[-1]
+        hold = hold + 1 if mouth and m == mouth[-1] else 0
+        mouth.append(m)
     moods = []
     block_starts = {round(b["start"], 2) for b in blocks[1:]}
     for s, (a, _) in zip(scenes, spans):

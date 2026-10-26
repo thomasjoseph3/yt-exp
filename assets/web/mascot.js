@@ -62,13 +62,16 @@ function buildMascot(parent, width) {
         <circle cx="76" cy="98" r="21"/><circle cx="124" cy="98" r="21"/><path d="M97 96 q3 -4 6 0"/>
       </g>
       <g class="m-mouth">
-        <path class="m0" d="M86 134 q14 12 28 0" fill="none" stroke="${c.ink}" stroke-width="4.5" stroke-linecap="round"/>
-        <path class="m1" d="M88 132 q12 14 24 0 z" fill="${c.mouth}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round" opacity="0"/>
+        <g class="m0"><path d="M86 134 q14 12 28 0" fill="none" stroke="${c.ink}" stroke-width="4.5" stroke-linecap="round"/>
+          <path d="M106 138.6 l2.2 5 l2.6 -6.2 z" fill="#fff" stroke="${c.ink}" stroke-width="1.6" stroke-linejoin="round"/></g>
+        <g class="m1" opacity="0"><path d="M88 132 q12 14 24 0 z" fill="${c.mouth}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+          <path d="M92.5 133.5 l2.2 4.6 l2.2 -4.6 z M103.1 133.5 l2.2 4.6 l2.2 -4.6 z" fill="#fff"/></g>
         <g class="m2" opacity="0"><path d="M84 130 q16 26 32 0 z" fill="${c.mouth}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
-          <ellipse cx="100" cy="143" rx="8" ry="4" fill="${c.tongue}"/></g>
+          <ellipse cx="100" cy="143" rx="8" ry="4" fill="${c.tongue}"/>
+          <path d="M89.5 131.8 l2.6 5.4 l2.6 -5.4 z M105.3 131.8 l2.6 5.4 l2.6 -5.4 z" fill="#fff"/></g>
         <g class="m3" opacity="0"><ellipse cx="100" cy="138" rx="15" ry="16" fill="${c.mouth}" stroke="${c.ink}" stroke-width="4"/>
-          <ellipse cx="100" cy="147" rx="9" ry="5" fill="${c.tongue}"/></g>
-        <path d="M93 131 l3 6 l3 -6 z" fill="#fff" class="m-fang"/>
+          <ellipse cx="100" cy="147" rx="9" ry="5" fill="${c.tongue}"/>
+          <path d="M93.4 124.2 l2.3 5 l2.3 -5 z M102.0 124.2 l2.3 5 l2.3 -5 z" fill="#fff"/></g>
       </g>
     </g>
     <g class="m-fx" font-family="Inter" font-weight="900">

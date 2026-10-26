@@ -8,6 +8,7 @@ Engines are tried in the order of config voice.engines, per scene:
 An engine that fails (rate limit, quota, network) is skipped for the rest of the run.
 """
 import base64
+import difflib
 import io
 import logging
 import re
@@ -23,7 +24,6 @@ from .config import ASSETS, cfg, secret, secrets
 
 log = logging.getLogger("thoma.voice")
 SR = 24000
-SCENE_GAP = 0.3  # silence between scenes
 TAG = re.compile(r"<[^>]{1,30}>")  # inline delivery tags such as <laugh>, <short pause>
 
 
@@ -45,48 +45,59 @@ def spoken(text: str, keep_tags: bool = False) -> str:
 
 
 def _gemini(text: str, voice: str | None) -> np.ndarray:
+    """Try every TTS model with every key: each model/key pair has its own free daily quota
+    (about 10 requests a day), so a limit on one just moves on to the next."""
     v = cfg()["voice"]
-    last = None
-    for model in v["gemini_models"]:  # a busy model (503) hands over to the next one
-        try:
-            return _gemini_once(text, voice, model)
-        except RuntimeError as e:
-            last = e
-            if "HTTP 503" not in str(e) and "HTTP 404" not in str(e):
-                raise
-            log.info("%s busy or unavailable, trying the next TTS model", model)
-    raise last
+    errors = []
+    for model in v["gemini_models"]:
+        for key in secrets("GEMINI_API_KEY"):
+            if (model, key) in _exhausted:
+                continue
+            styled = model not in _no_style
+            for attempt in range(3):
+                r = httpx.post("https://generativelanguage.googleapis.com/v1beta/interactions", timeout=180,
+                               json=_gemini_body(text, voice, model, styled), headers={"x-goog-api-key": key})
+                if r.status_code == 400 and "metadata is not supported" in r.text and styled:
+                    _no_style.add(model)  # older models: plain text only
+                    styled = False
+                    continue
+                if r.status_code == 429 and "per minute" in r.text and attempt == 0:
+                    time.sleep(20)  # short-term limit: worth one wait
+                    continue
+                break
+            if r.status_code == 200:
+                items = [c for step in r.json().get("steps", []) if step.get("type") == "model_output"
+                         for c in step.get("content", []) if c.get("type") == "audio"]
+                if items:
+                    raw = base64.b64decode(items[-1]["data"])
+                    if raw[:4] == b"RIFF":
+                        audio, sr = sf.read(io.BytesIO(raw), dtype="float32")
+                        assert sr == SR
+                        return audio
+                    return np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768  # raw 24 kHz PCM
+            errors.append(f"{model}: HTTP {r.status_code}")
+            if r.status_code in (429, 401, 403):
+                _exhausted.add((model, key))  # daily quota used up or key rejected: skip for this run
+            elif r.status_code not in (404, 500, 503):
+                raise RuntimeError(f"Gemini TTS HTTP {r.status_code}: {r.text[:200]}")
+    raise RuntimeError("all Gemini TTS models and keys unavailable: " + "; ".join(errors[-4:]))
 
 
-def _gemini_once(text: str, voice: str | None, model: str) -> np.ndarray:
+_exhausted: set = set()
+_no_style: set = set()
+
+
+def _gemini_body(text: str, voice: str | None, model: str, styled: bool = True) -> dict:
     v = cfg()["voice"]
-    body = {
+    item = {"type": "text", "text": spoken(text, keep_tags=True)}
+    if styled:
+        item["annotations"] = [{"type": "speech_metadata", "style": v["gemini_style"]}]
+    return {
         "model": model,
-        "input": [{"type": "user_input", "content": [{
-            "type": "text", "text": spoken(text, keep_tags=True),
-            "annotations": [{"type": "speech_metadata", "style": v["gemini_style"]}]}]}],
+        "input": [{"type": "user_input", "content": [item]}],
         "response_format": {"type": "audio"},
         "generation_config": {"speech_config": [{"voice": voice or v["gemini_voice"]}]},
     }
-    for attempt in range(3):
-        for key in secrets("GEMINI_API_KEY"):  # backup keys take over on limits or rejection
-            r = httpx.post("https://generativelanguage.googleapis.com/v1beta/interactions", json=body,
-                           timeout=180, headers={"x-goog-api-key": key})
-            if r.status_code not in (401, 403, 429):
-                break
-        if r.status_code == 429 and attempt < 2:  # every key is rate-limited: wait and try again
-            time.sleep(30)
-            continue
-        if r.status_code >= 400:
-            raise RuntimeError(f"Gemini TTS HTTP {r.status_code}: {r.text[:200]}")
-        break
-    audio_items = [c for step in r.json().get("steps", []) if step.get("type") == "model_output"
-                   for c in step.get("content", []) if c.get("type") == "audio"]
-    if not audio_items:
-        raise RuntimeError("Gemini TTS returned no audio")
-    audio, sr = sf.read(io.BytesIO(base64.b64decode(audio_items[-1]["data"])), dtype="float32")
-    assert sr == SR
-    return audio
 
 
 def _google(text: str, voice: str | None) -> np.ndarray:
@@ -154,28 +165,89 @@ def caption_words(text: str) -> list[str]:
     return TAG.sub("", text.replace("*", "")).split()
 
 
-def narrate(scenes: list[dict]):
-    """Voice every scene (one request each, which keeps free-tier rate limits happy).
+CHUNK_WORDS = 170  # whole scenes per TTS request; a Short is one continuous take
+CHUNK_GAP = 0.2    # breath between chunks of a long video
 
-    Returns (track, spans, words): spans are (start, end) per scene; words are per-scene
-    lists of (word, start, end), estimated from character counts with extra weight for pauses."""
-    parts, spans, words, t = [], [], [], 0.0
-    for s in scenes:
-        a = speak(s["say"])
-        dur = len(a) / SR
-        ws = caption_words(s["say"])
-        weight = [len(w) + 1 + (4 if w[-1] in ".!?" else 2 if w[-1] in ",;:" else 0) for w in ws]
-        total = sum(weight) or 1
-        wt, scene_words = t, []
-        for w, wgt in zip(ws, weight):
-            d = dur * wgt / total
-            scene_words.append((w, wt, wt + d))
-            wt += d
-        spans.append((t, t + dur))
-        words.append(scene_words)
-        parts += [a, np.zeros(int(SCENE_GAP * SR), np.float32)]
-        t += dur + SCENE_GAP
-    return np.concatenate(parts), spans, words
+
+def _chunks(scenes: list[dict]) -> list[list[int]]:
+    out, cur, n = [], [], 0
+    for i, s in enumerate(scenes):
+        w = len(caption_words(s["say"]))
+        if cur and n + w > CHUNK_WORDS:
+            out.append(cur)
+            cur, n = [], 0
+        cur.append(i)
+        n += w
+    return out + [cur] if cur else out
+
+
+@lru_cache
+def _aligner():
+    from faster_whisper import WhisperModel
+    return WhisperModel("base.en", device="cpu", compute_type="int8", download_root=str(ASSETS / "models/whisper"))
+
+
+def _norm(w: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", w.lower())
+
+
+def align(track: np.ndarray, script_words: list[str]) -> list[tuple[float, float]]:
+    """Start/end time of every script word in the track, from local speech recognition.
+    Words the recogniser hears differently (numbers, acronyms) are interpolated between neighbours."""
+    audio16 = np.interp(np.arange(0, len(track), SR / 16000), np.arange(len(track)), track).astype(np.float32)
+    segments, _ = _aligner().transcribe(audio16, language="en", word_timestamps=True, beam_size=1,
+                                        initial_prompt=" ".join(script_words[:80]))
+    heard = [(_norm(w.word), w.start, w.end) for seg in segments for w in (seg.words or [])]
+    times: list = [None] * len(script_words)
+    sm = difflib.SequenceMatcher(None, [_norm(w) for w in script_words], [h[0] for h in heard], autojunk=False)
+    for a, b, size in sm.get_matching_blocks():
+        for k in range(size):
+            times[a + k] = (heard[b + k][1], heard[b + k][2])
+    total = len(track) / SR
+    known = [i for i, t in enumerate(times) if t]
+    if not known:  # recogniser failed: spread evenly
+        step = total / max(len(script_words), 1)
+        return [(i * step, (i + 1) * step) for i in range(len(script_words))]
+    for i, t in enumerate(times):  # fill gaps proportionally between the nearest known words
+        if t:
+            continue
+        prev = max((k for k in known if k < i), default=None)
+        nxt = min((k for k in known if k > i), default=None)
+        t0 = times[prev][1] if prev is not None else 0.0
+        t1 = times[nxt][0] if nxt is not None else total
+        lo, hi = (prev if prev is not None else -1), (nxt if nxt is not None else len(script_words))
+        span = (t1 - t0) / (hi - lo - 1)
+        start = t0 + (i - lo - 1) * span
+        times[i] = (start, start + span)
+    return times
+
+
+def narrate(scenes: list[dict]):
+    """Voice the script as one continuous take (or a few long chunks), set the pace, then find
+    exactly when every word is spoken.
+
+    Returns (track, spans, words): spans are (start, end) per scene; words are per-scene lists of
+    (word, start, end)."""
+    parts = []
+    for idxs in _chunks(scenes):
+        parts += [speak(" ".join(scenes[i]["say"] for i in idxs)), np.zeros(int(CHUNK_GAP * SR), np.float32)]
+    track = np.concatenate(parts[:-1])
+    per_scene = [caption_words(s["say"]) for s in scenes]
+    flat = [w for ws in per_scene for w in ws]
+    wpm = len(flat) / (len(track) / SR / 60)
+    target = cfg()["voice"].get("target_wpm", 165)
+    if wpm < target * 0.97:  # too slow sounds lifeless: speed up (pitch stays the same)
+        factor = min(target / wpm, 1.2)
+        log.info("voice pace %.0f wpm, speeding up x%.2f", wpm, factor)
+        track = stretch(track, factor)
+    times = align(track, flat)
+    words, k = [], 0
+    for ws in per_scene:
+        words.append([(w, *times[k + j]) for j, w in enumerate(ws)])
+        k += len(ws)
+    starts = [0.0] + [ws[0][1] for ws in words[1:]]
+    ends = starts[1:] + [min(words[-1][-1][2] + 0.3, len(track) / SR)]
+    return track, list(zip(starts, ends)), words
 
 
 def stretch(track: np.ndarray, factor: float) -> np.ndarray:

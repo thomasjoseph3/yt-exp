@@ -86,13 +86,18 @@ voice:
   gemini_models: [gemini-3.8-flash-tts, gemini-3.1-flash-tts-preview, gemini-2.5-flash-preview-tts]  # tried in order when one is busy
   gemini_voice: Puck                   # run `thoma voices` to hear the options, then pick one
   gemini_style: >-
-    A playful, warm tech explainer who loves this stuff: clear and easy to follow, lively but
-    not rushed, smiling while talking, a cheeky little emphasis on the key words.
+    You are Thoma, the host of a popular YouTube tech explainer channel, talking to one curious
+    friend. Sound like a real, charismatic YouTuber, never an audiobook narrator or a robot reading a
+    script: conversational, upbeat and confident, with a smile in your voice. Keep a brisk, flowing
+    pace with no dramatic or long pauses; let sentences run into each other the way people really
+    talk. Lean on the key words, let your pitch move, and say the jokes lightly and quickly, like you
+    genuinely think this stuff is cool.
+  target_wpm: 165                      # natural explainer pace; slower takes are sped up to this
   google_voice: en-US-Chirp3-HD-Puck
   google_monthly_char_cap: 900000      # Chirp free tier is 1M/month; stop before that so it never bills
   kokoro_voice: am_michael
   speed: 1.0                           # local voice only
-  audition_voices: [Puck, Fenrir, Charon, Orus, Achird, Sadachbia]
+  audition_voices: [Puck, Fenrir, Charon, Orus, Achird, Sadachbia]   # `thoma voices` uses 1 free request each
   audition_kokoro: [am_michael, am_puck, bm_george]
   # Spelling fixes so the voice says terms right: written form -> spoken form.
   say_as:

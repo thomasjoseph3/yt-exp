@@ -11,8 +11,10 @@ a day (YouTube Shorts + Instagram Reels + Facebook Reels), and runs 24/7 as one 
    `ai_tools.share` sets how many videos are about AI tools (facts come from the tool's own website).
 2. `writer.py` fetches the source transcript, turns it into neutral research notes, writes Thoma's
    script (scenes = narration + a visual), runs code gates, then an LLM review. Failures loop back.
-3. `voice.py` speaks it (Google Chirp 3 HD, local Kokoro as backup) and adds synthesized SFX; render.py
-   masters the voice and ducks the music (assets/music, CC BY, credited in descriptions).
+3. `voice.py` voices the whole script as one continuous take (Gemini TTS; each model/key has ~10 free
+   requests a day, so it rotates models and keys; Chirp and local Kokoro are backups), speeds slow takes up
+   to `target_wpm`, then finds every word's timing with a local faster-whisper aligner so visuals and
+   captions land on the right word. render.py masters the voice and ducks the music.
 4. `render.py` loads `assets/web/stage.html` in headless Chromium, seeks the GSAP timeline to every
    frame, screenshots it and pipes frames to ffmpeg. Thoma the imp is SVG, drawn by `assets/web/mascot.js`.
 5. `pipeline.py` sends it to the owner on Telegram, and once approved (or right away in `mode: auto`)

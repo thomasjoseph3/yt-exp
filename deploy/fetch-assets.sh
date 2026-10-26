@@ -10,4 +10,6 @@ REL=https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1
 for t in "Sneaky Snitch" "Fluffing a Duck" "Carefree" "Wallpaper" "Local Forecast - Elevator" "Inspired"; do
   [ -s "assets/music/$t.mp3" ] || curl -fsSL -o "assets/music/$t.mp3" "https://incompetech.com/music/royalty-free/mp3-royaltyfree/${t// /%20}.mp3"
 done
+# speech aligner (finds when each word is spoken, so visuals and captions stay in sync)
+[ -d assets/models/whisper ] || uv run python -c "from faster_whisper import WhisperModel; WhisperModel('base.en', device='cpu', compute_type='int8', download_root='assets/models/whisper')"
 echo "assets ready"

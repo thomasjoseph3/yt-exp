@@ -15,7 +15,7 @@ log = logging.getLogger("thoma.writer")
 CHARACTER = (Path(__file__).parent / "character.md").read_text()
 
 FORMATS = {
-    "short": {"words": (100, 165), "target": "120-150", "scenes": (7, 12), "max_per_visual": 28, "signoff": "thoma out", "spec": (
+    "short": {"words": (100, 175), "target": "130-155", "scenes": (7, 12), "max_per_visual": 28, "signoff": "thoma out", "spec": (
         "A vertical Short/Reel of 45-59 seconds (100-155 spoken words), part of the series '<topic> in 60 "
         "seconds'. Scene 1 is the hook in under 12 words: a surprising question or fact about what the viewer "
         "will understand. No greeting, no self-introduction. One concept only: one analogy, one diagram, one "
@@ -38,7 +38,7 @@ SHORT_FORMATS = {
             "it ('...except that's not how it works'). Use a compare visual for myth vs reality, then the real "
             "explanation. Title like 'No, <thing> doesn't <myth>'.",
     "guess": "Format: can you guess? Open with a question the viewer tries to answer ('Guess how many... / "
-             "What happens when...'), say 'take a guess' with a <short pause>, then reveal with a stat or "
+             "What happens when...'), say 'take a guess', then reveal with a stat or "
              "bigtext visual and explain why. End by asking them to comment their guess before the sign-off.",
     "tool": "Format: AI tool spotlight. Hook with the specific everyday problem THIS tool solves, in your own "
             "words (never a generic line). Say what the tool is in one line, then how to use it in 3 simple steps (a steps or "
@@ -57,10 +57,10 @@ SCRIPT_SHAPE = """Reply with JSON only:
  "hashtags":["3-5 hashtags without #"],
  "thumb_text":"2-5 BIG words for the thumbnail, one *highlighted*, <=30 chars, e.g. 'RAG in *5 minutes*'",
  "thumb_icon":"one icon name",
- "scenes":[{"say":"what Thoma says, 1-2 short sentences, <=40 words","mood":"talk","visual":{...}}]}
+ "scenes":[{"say":"what Thoma says, 1-2 natural spoken sentences, <=40 words","mood":"talk","visual":{...}}]}
 mood is one of: talk, point, think, wow, laugh, wave (wave only in the first or last scene).
 Use think before a question, wow on a surprising fact, laugh right after a joke.
-In "say" you may use at most 3 delivery tags per video: <laugh>, <short pause>, <sigh>."""
+In "say" you may use one <laugh> per video after a joke; no other tags, and no pauses."""
 
 TOOL_LONG = ("This video is a hands-on tutorial on an AI tool: what it is, then how to use it for 2-3 real "
              "everyday tasks step by step (steps and diagram visuals), what it is good and bad at, one or two "
@@ -278,6 +278,11 @@ def write(idea, kind: str) -> dict:
     notes = research(idea)
     if notes:
         brief += f"\nResearch notes (facts to rely on; explain them your own way):\n{notes}\n"
+    with db.conn() as c:
+        earlier = [r[0] for r in c.execute("SELECT title FROM videos WHERE idea_id=? AND title != ''", (idea["id"],))]
+    if earlier:
+        brief += ("\nThis topic already has a video: " + "; ".join(f"'{t}'" for t in earlier) +
+                  ". Take a clearly different angle, hook and title.\n")
     hooks = recent_hooks(kind)
     if hooks:
         brief += "\nRecent hooks (do NOT open the same way):\n" + "\n".join(f"- {h}" for h in hooks) + "\n"
