@@ -5,8 +5,10 @@ explains AI and tech to beginners over ByteMonk/Fireship-style animations. Strat
 a day (YouTube Shorts + Instagram Reels + Facebook Reels), and runs 24/7 as one Python process.
 
 ## How it works (one line per step)
-1. `ideas.py` reads the YouTube feeds of IBM Technology, ByteMonk and Fireship (config.yaml → sources);
-   an LLM keeps videos that can become one beginner concept and adds an evergreen backlog.
+1. `ideas.py` reads the YouTube feeds of IBM Technology, ByteMonk and Fireship (config.yaml → sources)
+   and Product Hunt's AI feed; an LLM keeps what can become one beginner video. Backlogs:
+   `assets/evergreen_topics.txt` (concepts) and `assets/ai_tools.txt` (well-known AI tools).
+   `ai_tools.share` sets how many videos are about AI tools (facts come from the tool's own website).
 2. `writer.py` fetches the source transcript, turns it into neutral research notes, writes Thoma's
    script (scenes = narration + a visual), runs code gates, then an LLM review. Failures loop back.
 3. `voice.py` speaks it (Google Chirp 3 HD, local Kokoro as backup) and adds synthesized SFX; render.py
@@ -47,6 +49,7 @@ out/<id>-<kind>/         per video: script.json, voice.wav, captions.srt, timeli
 | `test-llm` | checks every provider in config.yaml |
 | `ideas [--backfill N]` | pull new topics (backfill needs YOUTUBE_API_KEY) |
 | `topic "What is Docker?"` | owner's topic request; used for the next video |
+| (config) `ai_tools.affiliates` | owner's affiliate links; added to descriptions of videos that mention the tool, with a disclosure |
 | `make short\|long [--idea ID] [--script file.json]` | write + render one video now |
 | `preview <script.json> short\|long [--at 2,10]` | still PNGs in out/preview/ — use this to check visual changes, it takes seconds |
 | `approve ID` / `reject ID` / `publish ID` | owner actions |

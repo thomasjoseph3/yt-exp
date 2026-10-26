@@ -13,7 +13,9 @@ Instagram/Facebook can also be fully automated (free Meta API, see Keys); until 
 you the full-quality file and a caption to copy.
 
 Topics come from **IBM Technology, ByteMonk and Fireship** (their feeds and transcripts are used as
-research only; every script, visual and voice is original) plus a backlog of evergreen beginner topics.
+research only; every script, visual and voice is original), **AI tools** (new Product Hunt launches and
+well-known tools, researched from their own websites, with your affiliate links), and a backlog of
+evergreen beginner topics.
 
 Everything runs locally for free except the voice (Gemini TTS, free tier) and the script
 writing, which only Qoder (your Qoder credits) or Claude (your subscription) does. If neither is

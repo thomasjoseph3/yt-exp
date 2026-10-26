@@ -1,0 +1,36 @@
+# Well-known AI tools people search "how to use" for. One per line:  Name | official website
+# These become evergreen tool tutorials and spotlights. Add or remove freely.
+ChatGPT | https://chatgpt.com
+Claude | https://claude.ai
+Gemini | https://gemini.google.com
+Perplexity | https://www.perplexity.ai
+NotebookLM | https://notebooklm.google.com
+Microsoft Copilot | https://copilot.microsoft.com
+Google AI Studio | https://aistudio.google.com
+Canva Magic Studio | https://www.canva.com/magic/
+Gamma | https://gamma.app
+Napkin AI | https://www.napkin.ai
+Notion AI | https://www.notion.com/product/ai
+Grammarly | https://www.grammarly.com
+QuillBot | https://quillbot.com
+DeepL | https://www.deepl.com
+Otter.ai | https://otter.ai
+Fathom | https://fathom.video
+CapCut | https://www.capcut.com
+Descript | https://www.descript.com
+ElevenLabs | https://elevenlabs.io
+Suno | https://suno.com
+Midjourney | https://www.midjourney.com
+Ideogram | https://ideogram.ai
+Krea | https://www.krea.ai
+Runway | https://runwayml.com
+Photoroom | https://www.photoroom.com
+Consensus | https://consensus.app
+Elicit | https://elicit.com
+Zapier AI | https://zapier.com/ai
+Make | https://www.make.com
+n8n | https://n8n.io
+Cursor | https://cursor.com
+GitHub Copilot | https://github.com/features/copilot
+Lovable | https://lovable.dev
+Bolt | https://bolt.new

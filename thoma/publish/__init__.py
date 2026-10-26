@@ -11,10 +11,22 @@ def caption(script: dict, kind: str, platform: str) -> str:
     chapters = ""
     if platform == "youtube" and script.get("chapters"):
         chapters = "\n".join(f"{int(t // 60)}:{int(t % 60):02} {name}" for t, name in script["chapters"]) + "\n\n"
+    links = _affiliate_links(script)
     credit = ""
     if script.get("music"):
         credit = cfg()["music"]["credit"].format(track=script["music"]) + "\n"
-    return f"{script['description']}\n\n{chapters}{tags}\n\n{credit}{DISCLOSURE}"
+    return f"{script['description']}\n\n{links}{chapters}{tags}\n\n{credit}{DISCLOSURE}"
+
+
+def _affiliate_links(script: dict) -> str:
+    """Links for tools the video actually mentions, from ai_tools.affiliates, with a disclosure."""
+    links = cfg().get("ai_tools", {}).get("affiliates") or {}
+    text = (script["title"] + " " + " ".join(s["say"] for s in script["scenes"])).lower()
+    found = [f"{name}: {url}" for name, url in links.items() if name.lower() in text]
+    if not found:
+        return ""
+    return ("Tools in this video:\n" + "\n".join(found) +
+            "\n(Some links are affiliate links: Thoma may earn a small commission at no extra cost to you.)\n\n")
 
 
 def platforms_for(kind: str) -> list[str]:

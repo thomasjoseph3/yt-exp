@@ -32,6 +32,16 @@ sources:
       channel_id: UCsBjURrPoezykLs9EqgamOA
   refresh_hours: 6
 
+# AI tool videos: "tool spotlight" Shorts and "how to use" tutorials, from Product Hunt's AI feed
+# (new launches) and assets/ai_tools.txt (well-known tools people search for).
+ai_tools:
+  enabled: true
+  feed: https://www.producthunt.com/feed?category=artificial-intelligence
+  share: {short: 0.35, long: 0.25}   # fraction of videos that are about an AI tool
+  # Your affiliate links. When a video mentions the tool, the link goes in the description with a
+  # disclosure line. Example:  "Notion AI": "https://affiliate.notion.so/your-code"
+  affiliates: {}
+
 # When videos go out (local time, see channel.timezone). The studio makes videos for the slots
 # in the next plan_ahead_hours and uploads them with that release time; YouTube publishes them
 # at the slot by itself, so this machine only has to be on at some point before (e.g. overnight).

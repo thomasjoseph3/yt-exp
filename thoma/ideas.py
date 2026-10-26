@@ -27,6 +27,48 @@ many things, interviews, opinion pieces, product ads, and memes. Reply as JSON:
 "angle":"one everyday analogy Thoma could use"}]}"""
 
 
+TOOLS_TRIAGE = """You pick AI tools for "Thoma Explains", a channel for beginners: students, office
+workers, small business owners, creators. You get new AI tools (name + tagline). fit=true only for
+tools a normal person could actually use to save time or do something new (writing, studying,
+slides, video, images, meetings, research, automation, simple coding). fit=false for tools only
+for developers' infrastructure, crypto, adult, gambling, vague "AI platform" pitches, and clones
+of well-known tools with nothing new. Reply as JSON:
+{"items":[{"ref":"<ref>","fit":true,"topic":"<Tool name>: what it does, e.g. 'Gamma: AI that makes slide decks'",
+"angle":"the everyday problem it solves"}]}"""
+
+TOOL_SOURCES = ("AI tools", "tool-evergreen")
+
+
+def is_tool(idea) -> bool:
+    return idea is not None and idea["source"] in TOOL_SOURCES
+
+
+def tool_site(idea) -> str:
+    for line in (idea["source_text"] or "").splitlines():
+        if line.startswith("website: "):
+            return line[9:].strip()
+    return ""
+
+
+def _tools_feed(url: str) -> list[dict]:
+    """New AI tools from Product Hunt's AI feed (Atom)."""
+    import html
+    import re
+    r = httpx.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 ThomaStudio"})
+    r.raise_for_status()
+    items = []
+    for e in ET.fromstring(r.text).findall("a:entry", NS):
+        content = html.unescape(e.findtext("a:content", default="", namespaces=NS))
+        tagline = re.sub(r"<[^>]+>", " ", content.split("Discussion")[0])
+        link = re.search(r'href="(https://www\.producthunt\.com/r/p/[^"]+)"', content)
+        items.append({
+            "ref": "ph:" + e.findtext("a:id", namespaces=NS).rsplit("/", 1)[-1],
+            "title": e.findtext("a:title", namespaces=NS),
+            "text": " ".join(tagline.split()) + (f"\nwebsite: {link.group(1)}" if link else ""),
+        })
+    return items
+
+
 def _rss(channel_id: str) -> list[dict]:
     r = httpx.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}", timeout=30)
     r.raise_for_status()
@@ -61,7 +103,7 @@ def _backfill(channel_id: str, pages: int) -> list[dict]:
     return items
 
 
-def _store(source: str, items: list[dict], priority: int) -> int:
+def _store(source: str, items: list[dict], priority: int, system: str = TRIAGE_SYSTEM) -> int:
     with db.conn() as c:
         known = {r[0] for r in c.execute("SELECT source_ref FROM ideas")}
     fresh = [i for i in items if i["ref"] not in known]
@@ -70,7 +112,7 @@ def _store(source: str, items: list[dict], priority: int) -> int:
     added = 0
     for chunk in (fresh[i:i + 15] for i in range(0, len(fresh), 15)):
         listing = "\n\n".join(f"ref: {i['ref']}\ntitle: {i['title']}\ndescription: {i['text'][:400]}" for i in chunk)
-        verdicts = {v["ref"]: v for v in llm.ask_json(TRIAGE_SYSTEM, listing, "triage").get("items", [])}
+        verdicts = {v["ref"]: v for v in llm.ask_json(system, listing, "triage").get("items", [])}
         with db.conn() as c:
             for i in chunk:
                 v = verdicts.get(i["ref"], {"fit": False})
@@ -109,6 +151,13 @@ def refresh(backfill_pages: int = 0) -> int:
         items = _backfill(ch["channel_id"], backfill_pages) if backfill_pages else _rss(ch["channel_id"])
         # New uploads are timely, so they jump the queue; back-catalogue does not.
         added += _store(ch["name"], items, priority=1 if backfill_pages else 3)
+    tools = cfg().get("ai_tools", {})
+    if tools.get("enabled"):
+        try:
+            added += _store("AI tools", _tools_feed(tools["feed"]), priority=2, system=TOOLS_TRIAGE)
+        except httpx.HTTPError as e:
+            log.warning("AI tools feed unavailable: %s", e)
+        added += seed_tools()
     added += seed_evergreen()
     db.set_kv("ideas_refreshed", db.now())
     log.info("ideas refreshed: %d new", added)
@@ -129,6 +178,22 @@ def seed_evergreen() -> int:
     return added
 
 
+def seed_tools() -> int:
+    """Well-known AI tools (assets/ai_tools.txt): evergreen 'how to use' topics."""
+    added = 0
+    with db.conn() as c:
+        for line in (ASSETS / "ai_tools.txt").read_text().splitlines():
+            if "|" not in line or line.lstrip().startswith("#"):
+                continue
+            name, url = (x.strip() for x in line.split("|", 1))
+            cur = c.execute(
+                "INSERT OR IGNORE INTO ideas (source, source_ref, source_title, source_text, topic, status, priority,"
+                " created) VALUES ('tool-evergreen', ?, ?, ?, ?, 'new', 1, ?)",
+                ("tool:" + name.lower(), name, f"website: {url}", f"How to use {name}", db.now()))
+            added += cur.rowcount
+    return added
+
+
 def add_topic(topic: str) -> int:
     """An owner request jumps the queue: it is used for the next video of either kind."""
     with db.conn() as c:
@@ -137,9 +202,22 @@ def add_topic(topic: str) -> int:
 
 
 def next_idea(kind: str):
-    """Best unused idea for a short (max 2 shorts per idea) or a long video."""
+    """Best unused idea for a short (max 2 shorts per idea) or a long video.
+
+    Owner requests always come first. Otherwise a share of videos (ai_tools.share) is about AI
+    tools and the rest are concept explainers; if one lane is empty the other is used."""
+    import random
     used = "long_made = 0" if kind == "long" else "shorts_made < 2"
+    order = " ORDER BY priority DESC, (shorts_made + long_made) ASC, id DESC LIMIT 1"
+    tools = cfg().get("ai_tools", {})
+    want_tool = tools.get("enabled") and random.random() < tools.get("share", {}).get(kind, 0)
+    lanes = ["source IN ('AI tools','tool-evergreen')", "source NOT IN ('AI tools','tool-evergreen')"]
     with db.conn() as c:
-        return c.execute(
-            f"SELECT * FROM ideas WHERE status='new' AND {used}"
-            " ORDER BY priority DESC, (shorts_made + long_made) ASC, id DESC LIMIT 1").fetchone()
+        owner = c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND source='owner'{order}").fetchone()
+        if owner:
+            return owner
+        for lane in (lanes if want_tool else lanes[::-1]):
+            idea = c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND {lane}{order}").fetchone()
+            if idea:
+                return idea
+    return None

@@ -77,8 +77,13 @@ monetization and grows with the back catalogue, because good explainers keep get
   brings more people who later search for Thoma on YouTube.
 
 ## Extra income streams (start these early; they don't need monetization)
-1. **Affiliate links** (from month 1): hosting, courses, AI tools and books in the description of
-   relevant videos. In tech education these often earn more than ads at the start.
+1. **AI tool videos + affiliate links** (from month 1). About a third of Shorts and a quarter of long
+   videos are AI-tool spotlights and "how to use" tutorials (new launches from Product Hunt plus
+   well-known tools like NotebookLM, Gamma, Perplexity). Many AI tools pay 20–30% recurring commission.
+   Sign up for their affiliate programmes, put your links in `ai_tools.affiliates` in `config.yaml`, and
+   every video that mentions the tool gets the link and a disclosure in its description. Facts and
+   prices come only from the tool's own website, with the date. Honest reviews keep trust (and the
+   channel safe).
 2. **A free cheat sheet or "AI basics" PDF** in exchange for an email address. That builds an
    audience you own.
 3. **Sponsorships** around 5k–10k subscribers: tech and edtech brands pay small education channels

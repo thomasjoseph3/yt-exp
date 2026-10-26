@@ -40,6 +40,11 @@ SHORT_FORMATS = {
     "guess": "Format: can you guess? Open with a question the viewer tries to answer ('Guess how many... / "
              "What happens when...'), say 'take a guess' with a <short pause>, then reveal with a stat or "
              "bigtext visual and explain why. End by asking them to comment their guess before the sign-off.",
+    "tool": "Format: AI tool spotlight. Hook with the specific everyday problem THIS tool solves, in your own "
+            "words (never a generic line). Say what the tool is in one line, then how to use it in 3 simple steps (a steps or "
+            "diagram visual), who it's great for, and one honest limitation. Mention price only if the research "
+            "notes state it, phrased 'as of <month year>'. Never invent features. It must feel like a friend's "
+            "tip, not an advert. Title like '<Tool>: the AI that <does X> (in 60 seconds)'.",
     "news": "Format: fresh news, explained. Start from what just happened (from the research notes, stating "
             "only what the notes support), then explain the underlying concept a beginner needs to understand "
             "it. Title like '<news thing>, explained in 60 seconds'.",
@@ -56,6 +61,17 @@ SCRIPT_SHAPE = """Reply with JSON only:
 mood is one of: talk, point, think, wow, laugh, wave (wave only in the first or last scene).
 Use think before a question, wow on a surprising fact, laugh right after a joke.
 In "say" you may use at most 3 delivery tags per video: <laugh>, <short pause>, <sigh>."""
+
+TOOL_LONG = ("This video is a hands-on tutorial on an AI tool: what it is, then how to use it for 2-3 real "
+             "everyday tasks step by step (steps and diagram visuals), what it is good and bad at, one or two "
+             "alternatives in a line, and pricing only as stated in the research notes, with the month and year. "
+             "Never invent features. Helpful and honest, never an advert.")
+
+TOOL_RESEARCH_SYSTEM = """You prepare research notes about an AI tool for a beginner tutorial, using ONLY the
+text from the tool's own website given below. Extract: what it does in one line, who it's for, the main
+features, how a beginner would start, whether a free plan exists and prices (only if stated, with the exact
+wording), and any limits mentioned. If something is not on the page, write "unknown" - never guess.
+Reply as JSON: {"notes": ["...", "..."], "beginner_questions": ["...", "..."]}"""
 
 RESEARCH_SYSTEM = """You prepare research notes for a beginner tech explainer. From the source
 material, extract what is true and useful: key concepts, how it works step by step, concrete
@@ -186,14 +202,36 @@ def recent_hooks(kind: str) -> list[str]:
     return [json.loads(r["script"])["scenes"][0]["say"] for r in rows]
 
 
+def _website_text(url: str) -> str:
+    """Readable text of a tool's website (follows Product Hunt's redirect to the real site)."""
+    import html as htmlmod
+    if not url:
+        return ""
+    try:
+        import httpx
+        r = httpx.get(url, timeout=30, follow_redirects=True, headers={"User-Agent": "Mozilla/5.0 ThomaStudio"})
+        page = re.sub(r"(?is)<(script|style|svg|noscript)[^>]*>.*?</\1>", " ", r.text)
+        text = htmlmod.unescape(re.sub(r"<[^>]+>", " ", page))
+        return f"Website: {r.url}\n" + " ".join(text.split())[:15000]
+    except Exception as e:
+        log.info("could not read %s: %s", url, e)
+        return ""
+
+
 def research(idea) -> str:
     """Neutral notes from the source video's transcript (cached on the idea)."""
     if idea["research"]:
         return idea["research"]
     from . import ideas
-    transcript = idea["transcript"] or ideas.transcript(idea)
-    material = f"Title: {idea['source_title'] or idea['topic']}\n{idea['source_text'] or ''}\n\n{transcript or ''}"
-    out = llm.ask_json(RESEARCH_SYSTEM, material[:24000] + f"\n\nTopic for our video: {idea['topic']}", "research")
+    if ideas.is_tool(idea):
+        page = _website_text(ideas.tool_site(idea))
+        material = f"Tool: {idea['source_title']}\nTagline: {(idea['source_text'] or '').splitlines()[0]}\n\n{page}"
+        system = TOOL_RESEARCH_SYSTEM
+    else:
+        transcript = idea["transcript"] or ideas.transcript(idea)
+        material = f"Title: {idea['source_title'] or idea['topic']}\n{idea['source_text'] or ''}\n\n{transcript or ''}"
+        system = RESEARCH_SYSTEM
+    out = llm.ask_json(system, material[:24000] + f"\n\nTopic for our video: {idea['topic']}", "research")
     notes = "\n".join(f"- {n}" for n in out.get("notes", []))
     if out.get("beginner_questions"):
         notes += "\nBeginner questions to answer:\n" + "\n".join(f"- {q}" for q in out["beginner_questions"])
@@ -203,9 +241,13 @@ def research(idea) -> str:
 
 
 def pick_short_format(idea) -> str:
-    """Weighted rotation from config, never the same format twice in a row; 'news' only for fresh ideas."""
+    """Weighted rotation from config, never the same format twice in a row; 'news' only for fresh ideas.
+    AI tool ideas always use the 'tool' format."""
     import random
+    from . import ideas
     from .config import cfg
+    if ideas.is_tool(idea):
+        return "tool"
     weights = dict(cfg().get("short_formats", {"explainer": 1}))
     if idea["source"] in ("evergreen", "owner") or (idea["priority"] or 0) < 3:
         weights.pop("news", None)
@@ -217,8 +259,13 @@ def pick_short_format(idea) -> str:
 
 
 def write(idea, kind: str) -> dict:
-    fmt = pick_short_format(idea) if kind == "short" else "tutorial"
+    from datetime import date
+    from . import ideas
+    fmt = pick_short_format(idea) if kind == "short" else ("tool-tutorial" if ideas.is_tool(idea) else "tutorial")
     spec = FORMATS[kind]["spec"] + ("\n" + SHORT_FORMATS[fmt] if kind == "short" else "")
+    if fmt == "tool-tutorial":
+        spec += "\n" + TOOL_LONG
+    spec += f"\nToday's date: {date.today():%B %Y}."
     system = f"{CHARACTER}\n\n# Format\n{spec}\n\n{visuals.SPEC}\n\n{SCRIPT_SHAPE}"
     lo, hi = FORMATS[kind]["words"]
     brief = (f"Topic: {idea['topic']}\nWord budget: aim for {FORMATS[kind]['target']} spoken words in total "
