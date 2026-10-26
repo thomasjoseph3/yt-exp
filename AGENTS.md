@@ -4,6 +4,8 @@ An automated channel, **Thoma Explains**: Thoma, a small comic tech imp in the c
 explains AI and tech to beginners over ByteMonk/Fireship-style animations. Strategy: STRATEGY.md. The studio makes a ~5-minute 16:9 tutorial every day (YouTube + Facebook) and 2 Shorts
 a day (YouTube Shorts + Instagram Reels + Facebook Reels), and runs 24/7 as one Python process.
 
+**Read `docs/memory/` first**: the owner's decisions, what's done and what's pending. Update it when a decision changes.
+
 ## How it works (one line per step)
 1. `ideas.py` reads the YouTube feeds of IBM Technology, ByteMonk and Fireship (config.yaml → sources)
    and Product Hunt's AI feed; an LLM keeps what can become one beginner video. Backlogs:
