@@ -186,10 +186,10 @@ The setup script:
 - creates your `.env` file from the template,
 - checks which script writers (Qoder, Claude) are reachable.
 
-**Moving from another machine?** On the old machine run `./deploy/backup.sh` and copy the
-`thoma-backup-<date>.tar.gz` file over. Then run `./deploy/setup.sh thoma-backup-<date>.tar.gz`
-here instead. That restores your keys, the YouTube sign-in and the history of which topics were
-already made, so nothing gets repeated. **Stop the old machine first**
+**Moving from another machine?** Follow [MOVING.md](MOVING.md) instead: on the old machine
+`./deploy/backup.sh`, then here `./deploy/setup.sh thoma-backup-<date>.tar.gz` (Linux) or the
+Docker steps in MOVING.md. That restores your keys, the YouTube sign-in, the database and the videos
+still waiting for you, so nothing is lost or repeated. **Stop the old machine first**
 (`systemctl --user disable --now thoma-studio`) so the two never post the same video.
 
 ---
@@ -248,7 +248,8 @@ instructions. Approve it and it goes out at the next posting slot.
 
 The studio now runs in the background, restarts itself if it crashes, and keeps running after you
 log out. Every 15 minutes it checks for new topics, makes videos when they're due, and posts
-uploads approved ones with their release time (by default 2 Shorts and 1 long video a day).
+uploads approved ones with their release time (by default 1 Short a day and 3 long videos a week:
+Tue/Thu/Sat). `uv run thoma plan` (or `/plan` on Telegram) shows the coming week slot by slot.
 
 Useful commands:
 
@@ -268,12 +269,12 @@ release time**, and YouTube publishes each one at its slot by itself, even if yo
 
 How a typical day looks with the default times:
 - **21:00**: you plug in the laptop and leave it on. The service starts by itself.
-- **Overnight**: it makes tomorrow's long video and Shorts (about 1 hour of work), sends each one
-  to Telegram, and uploads it to YouTube with its release time.
+- **Overnight**: it makes every video the coming week still needs (a full week is 3 long + 7 Shorts,
+  about 6 hours), sends each one to Telegram, and uploads approved ones with their release time.
 - **Morning**: you check Telegram, `/approve` or `/reject`, and switch the laptop off whenever you like.
-- **06:30 / 07:30 / 19:30**: YouTube releases them. You post the Reels from Telegram at those times.
+- **06:30 (long, Tue/Thu/Sat) / 19:30 (Short, daily)**: YouTube releases them. You post the Reels from Telegram at those times.
 
-It plans 36 hours ahead (`plan_ahead_hours`), so missing a night is fine; the next night catches up.
+It plans 7 days ahead (`plan_ahead_hours: 168`), so one night a week is enough; missing a night is fine.
 
 **In approve mode, approvals happen at night too:** if you approve in the morning while the laptop
 is off, the video is uploaded the next time the laptop is on and takes the next free slot. To
