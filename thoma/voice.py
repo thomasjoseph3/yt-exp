@@ -48,8 +48,9 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
     """Try every TTS model with every key: each model/key pair has its own free daily quota
     (about 10 requests a day), so a limit on one just moves on to the next."""
     v = cfg()["voice"]
+    global last_model
     errors = []
-    for model in v["gemini_models"]:
+    for model in [pinned_model] if pinned_model else v["gemini_models"]:  # one model per video: same sound
         for key in secrets("GEMINI_API_KEY"):
             if (model, key) in _exhausted:
                 continue
@@ -69,6 +70,7 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
                 items = [c for step in r.json().get("steps", []) if step.get("type") == "model_output"
                          for c in step.get("content", []) if c.get("type") == "audio"]
                 if items:
+                    last_model = model
                     raw = base64.b64decode(items[-1]["data"])
                     if raw[:4] == b"RIFF":
                         audio, sr = sf.read(io.BytesIO(raw), dtype="float32")
@@ -84,6 +86,7 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
 
 
 _exhausted: set = set()
+pinned_model = last_model = None
 _no_style: set = set()
 
 
@@ -134,13 +137,16 @@ def _within_free_tier(text: str) -> bool:
     return True
 
 
+last_engine = None
 ENGINES = {"gemini": (_gemini, "GEMINI_API_KEY"), "google": (_google, "GOOGLE_TTS_API_KEY"), "kokoro": (_local, None)}
 _down: set[str] = set()
 
 
-def speak(text: str, engine: str | None = None, voice: str | None = None) -> np.ndarray:
+def speak(text: str, engine: str | None = None, voice: str | None = None, strict: bool = False) -> np.ndarray:
+    """strict: use only `engine` (raise instead of falling back), so one video never mixes voices."""
+    global last_engine
     order = [engine] if engine else cfg()["voice"].get("engines", ["kokoro"])
-    if "kokoro" not in order:
+    if "kokoro" not in order and not strict:
         order = [*order, "kokoro"]
     for name in order:
         fn, key = ENGINES[name]
@@ -148,6 +154,7 @@ def speak(text: str, engine: str | None = None, voice: str | None = None) -> np.
             continue
         try:
             audio = fn(text, voice if engine else None)
+            last_engine = name
             break
         except Exception as e:
             log.warning("%s voice failed, trying the next one: %s", name, e)
@@ -222,15 +229,44 @@ def align(track: np.ndarray, script_words: list[str]) -> list[tuple[float, float
     return times
 
 
-def narrate(scenes: list[dict]):
+def narrate(scenes: list[dict], cache_dir=None):
     """Voice the script as one continuous take (or a few long chunks), set the pace, then find
     exactly when every word is spoken.
 
+    cache_dir keeps each chunk's raw take, so re-rendering after a small script fix only re-voices
+    the chunks whose words changed.
     Returns (track, spans, words): spans are (start, end) per scene; words are per-scene lists of
     (word, start, end)."""
+    import hashlib
+    import json
+    global pinned_model
+    # every chunk uses one engine and one model: a video never changes voice halfway
+    meta = cache_dir / "voice.json" if cache_dir else None
+    if meta and meta.exists():
+        engine, pinned_model = (lambda m: (m["engine"], m.get("model")))(json.loads(meta.read_text()))
+    else:
+        engine, pinned_model = None, None
+    if cache_dir:
+        cache_dir.mkdir(parents=True, exist_ok=True)
     parts = []
-    for idxs in _chunks(scenes):
-        parts += [speak(" ".join(scenes[i]["say"] for i in idxs)), np.zeros(int(CHUNK_GAP * SR), np.float32)]
+    try:
+        for idxs in _chunks(scenes):
+            text = " ".join(scenes[i]["say"] for i in idxs)
+            take = cache_dir / f"{hashlib.sha1(text.encode()).hexdigest()[:16]}.flac" if cache_dir else None
+            if take and take.exists():
+                audio = sf.read(take, dtype="float32")[0]
+            else:
+                audio = speak(text, engine, strict=engine is not None)
+                if engine is None:
+                    engine = last_engine
+                    pinned_model = last_model if engine == "gemini" else None
+                    if meta:
+                        meta.write_text(json.dumps({"engine": engine, "model": pinned_model}))
+                if take:
+                    sf.write(take, audio, SR)
+            parts += [audio, np.zeros(int(CHUNK_GAP * SR), np.float32)]
+    finally:
+        pinned_model = None
     track = np.concatenate(parts[:-1])
     per_scene = [caption_words(s["say"]) for s in scenes]
     flat = [w for ws in per_scene for w in ws]

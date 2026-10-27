@@ -50,7 +50,7 @@ monetization and grows with the back catalogue, because good explainers keep get
    catchphrase. Original animated visuals, not stock footage.
 3. **Variety, not a template.** Rotating Short formats (explainer, myth vs fact, "can you guess",
    fresh news), different hooks every time (checked automatically), and different visuals per topic.
-4. **Quality over quantity.** 1 long + 2 Shorts a day is the ceiling. If any video is weak, skip
+4. **Quality over quantity.** 3 long videos a week (Tue/Thu/Sat, a 4th once quality holds) + 2 Shorts a day. If any video is weak, skip
    the slot rather than post filler.
 5. **Be a creator, not a machine.** Reply to comments yourself (5 minutes a day), pin a helpful
    comment on each video, and post a Community post once a week ("what should Thoma explain next?").

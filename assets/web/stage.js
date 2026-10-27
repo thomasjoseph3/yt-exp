@@ -9,7 +9,7 @@ const col = (i) => `var(${COLORS[i % COLORS.length]})`;
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const hex = (i) => css(COLORS[i % COLORS.length]);
 
-let D, tl, tickers = [], mascot, capEl, lastCap = "";
+let D, tl, tickers = [], mascot, capEl, lastCap = "", cuts = [];
 
 function h(tag, cls, parent, styles = {}, html = "") {
   const e = document.createElement(tag);
@@ -397,9 +397,248 @@ B.takeaway = (scene, v, box, R, start, end, portrait) => {
   slideIn(sub, end - 2.2, { y: 20 });
 };
 
+// ---------- concept visuals (how AI works, drawn the ByteMonk way) ----------
+const SVGNS = "http://www.w3.org/2000/svg";
+function sv(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function svgLayer(scene) {
+  const s = sv("svg", { class: "edges" }, scene);
+  return s;
+}
+// Stable pseudo-random number in [0, 1) from a string, so layouts never change between frames.
+function hash(s, k = 0) {
+  let x = 2166136261 ^ k;
+  for (const c of String(s)) x = Math.imul(x ^ c.charCodeAt(0), 16777619);
+  return ((x >>> 0) % 10000) / 10000;
+}
+
+// "Unbelievable results" -> ["Un", "believ", "able", " results"]: illustrative sub-word pieces.
+function autoTokens(text) {
+  const out = [];
+  String(text || "").split(/\s+/).filter(Boolean).forEach((w, i) => {
+    const pre = i ? " " : "";
+    if (w.length > 7) { const cut = Math.ceil(w.length * 0.55); out.push(pre + w.slice(0, cut), w.slice(cut)); }
+    else out.push(pre + w);
+  });
+  return out;
+}
+
+B.tokens = (scene, v, box, R, start, end, portrait) => {
+  const top = heading(scene, v.heading, box, start + 0.1);
+  const toks = (v.tokens && v.tokens.length ? v.tokens : autoTokens(v.text)).slice(0, 16);
+  const sent = h("div", "big", scene, { top: top + (box.h - top) * 0.06 + "px" }, esc(v.text));
+  fit(sent, box.w * 0.92, (box.h - top) * 0.26, portrait ? 74 : 80, 30);
+  tl.fromTo(sent, { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, R[0]);
+  const split = R[1] ?? R[0] + 1.2;
+  tl.to(sent, { opacity: 0.3, scale: 0.92, duration: 0.4 }, split);
+  // a scanning bar sweeps the sentence, then the pieces drop out of it as chips
+  const scan = h("div", "scan", scene, { top: sent.offsetTop - 10 + "px", height: sent.offsetHeight + 20 + "px" });
+  tl.fromTo(scan, { left: "0%", opacity: 0 }, { left: "96%", opacity: 1, duration: 0.6, ease: "power1.inOut" }, split - 0.5);
+  tl.to(scan, { opacity: 0, duration: 0.15 }, split + 0.1);
+  const wrap = h("div", "chips", scene, { top: top + (box.h - top) * 0.38 + "px", gap: portrait ? "18px 14px" : "22px 16px" });
+  const fs = toks.length > 10 ? 40 : toks.length > 5 ? 52 : 62;
+  toks.forEach((t, i) => {
+    const chip = h("div", "chip", wrap, { borderColor: col(i), fontSize: fs + "px",
+      background: `color-mix(in srgb, ${col(i)} 18%, #0d1430)` });
+    h("div", "", chip, {}, esc(t.trim() || "␣").replace(/^ /, ""));
+    if (v.ids !== false) h("div", "tid", chip, { color: col(i) }, String(100 + Math.floor(hash(t) * 49000)));
+    tl.fromTo(chip, { opacity: 0, y: -90, scale: 0.5, rotation: (hash(t, 1) - 0.5) * 30 },
+      { opacity: 1, y: 0, scale: 1, rotation: 0, duration: 0.5, ease: "back.out(1.8)" }, split + 0.1 + i * 0.09);
+  });
+  const count = h("div", "pill", scene, { position: "absolute", left: "50%", top: box.h * 0.88 + "px", fontSize: portrait ? "34px" : "30px",
+    transform: "translateX(-50%)", whiteSpace: "nowrap" }, `${toks.length} tokens${v.ids !== false ? " · each one is a number" : ""}`);
+  tl.fromTo(count, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.35 }, split + 0.4 + toks.length * 0.09);
+};
+
+B.predict = (scene, v, box, R, start, end, portrait) => {
+  const opts = (v.options || []).slice(0, 5);
+  const pick = Math.min(Math.max(v.pick ?? 0, 0), Math.max(opts.length - 1, 0));
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const pc = h("div", "card prompt", scene, { left: "3%", width: "94%", top: top + "px", padding: portrait ? "30px 34px" : "26px 40px" });
+  h("div", "pill", pc, { fontSize: "24px", marginBottom: "14px" }, "PROMPT");
+  const line = h("div", "label", pc, { textAlign: "left", fontWeight: 750 });
+  line.innerHTML = `${esc(v.prompt || "")} <span class="slot"><span class="cursor">▍</span><span class="fill">${esc(opts[pick] ? opts[pick].word : "")}</span></span>`;
+  fit(line, box.w * 0.94 - 90, portrait ? 210 : 150, portrait ? 58 : 54, 26);
+  popIn(pc, R[0], { duration: 0.45 });
+  const cursor = line.querySelector(".cursor"), fill = line.querySelector(".fill");
+  const at = R[opts.length + 1] ?? end - 1.4;
+  tickers.push((t) => { cursor.style.opacity = t < at && Math.floor(t * 2.4) % 2 === 0 ? 1 : 0; cursor.style.display = t < at ? "" : "none"; });
+  tl.fromTo(fill, { opacity: 0, scale: 1.6 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }, at + 0.25);
+  const lbl = h("div", "sub", scene, { position: "absolute", left: 0, right: 0, top: top + pc.offsetHeight + 34 + "px", fontSize: portrait ? "34px" : "30px" },
+    esc(v.label || "What word comes next? The model scores every option"));
+  tl.fromTo(lbl, { opacity: 0 }, { opacity: 1, duration: 0.3 }, (R[1] ?? R[0] + 0.6) - 0.3);
+  const yy = top + pc.offsetHeight + 110, rowH = Math.min(portrait ? 190 : 120, (box.h - yy - 10) / Math.max(opts.length, 1));
+  const y0 = yy + (box.h - yy - rowH * opts.length) * 0.35;
+  const maxP = Math.max(...opts.map(o => +o.p || 0), 1);
+  opts.forEach((o, i) => {
+    const row = h("div", "", scene, { position: "absolute", left: "3%", width: "94%", top: y0 + i * rowH + "px", height: rowH * 0.78 + "px",
+      display: "flex", alignItems: "center", gap: "22px" });
+    const w = h("div", "label", row, { width: portrait ? "250px" : "260px", textAlign: "right", flexShrink: 0, fontSize: Math.min(rowH * 0.42, 52) + "px" }, esc(o.word));
+    const track = h("div", "bar-track", row, {});
+    const bar = h("div", "bar", track, { background: i === pick ? "linear-gradient(90deg, var(--amber), #fde68a)" : `linear-gradient(90deg, ${col(i + 1)}, color-mix(in srgb, ${col(i + 1)} 55%, white))` });
+    const pct = h("div", "label", row, { width: "150px", flexShrink: 0, textAlign: "left", fontSize: Math.min(rowH * 0.4, 48) + "px", color: i === pick ? "var(--amber)" : "var(--muted)" }, "0%");
+    const t0 = R[i + 1] ?? start + 0.8 + i * 0.4;
+    tl.fromTo(row, { opacity: 0, x: -40 }, { opacity: 1, x: 0, duration: 0.3 }, t0);
+    tl.fromTo(bar, { width: "0%" }, { width: Math.max(2, (+o.p || 0) / maxP * 100) + "%", duration: 0.8, ease: "power2.out" }, t0 + 0.1);
+    const obj = { n: 0 };
+    tl.to(obj, { n: +o.p || 0, duration: 0.8, ease: "power2.out", onUpdate: () => { pct.textContent = Math.round(obj.n) + "%"; } }, t0 + 0.1);
+    if (i === pick) {
+      tl.to(row, { scale: 1.05, duration: 0.3, transformOrigin: "left center" }, at);
+      tl.to(bar, { boxShadow: "0 0 40px rgba(251,191,36,0.8)", duration: 0.3 }, at);
+      tl.to(w, { color: "var(--amber)", duration: 0.2 }, at);
+    } else tl.to(row, { opacity: 0.4, duration: 0.3 }, at);
+  });
+};
+
+B.vectors = (scene, v, box, R, start, end, portrait) => {
+  const groups = (v.groups || []).slice(0, 4).map(g => typeof g === "string" ? { label: g, items: [] } : g);
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const readH = v.query ? (portrait ? 120 : 90) : 0;
+  const area = { x: 0, y: top, w: box.w, h: box.h - top - readH - 10 };
+  const plane = h("div", "card plane", scene, { left: area.x + "px", top: area.y + "px", width: area.w + "px", height: area.h + "px" });
+  tl.fromTo(plane, { opacity: 0 }, { opacity: 1, duration: 0.4 }, start + 0.1);
+  const svg = svgLayer(scene);
+  const centers = [[[0.5, 0.5]], [[0.28, 0.5], [0.72, 0.5]], [[0.27, 0.3], [0.73, 0.3], [0.5, 0.74]],
+    [[0.27, 0.28], [0.73, 0.28], [0.27, 0.74], [0.73, 0.74]]][Math.max(groups.length, 1) - 1];
+  const spots = [];
+  groups.forEach((g, gi) => {
+    const [cx, cy] = centers[gi];
+    const X = area.x + area.w * cx, Y = area.y + area.h * cy, rad = Math.min(area.w / (groups.length > 1 ? 2 : 1), area.h) * (groups.length > 2 ? 0.2 : 0.28);
+    const c = col(gi), t0 = R[gi] ?? start + 0.5 + gi * 0.8;
+    const halo = h("div", "halo", scene, { left: X - rad * 1.25 + "px", top: Y - rad * 1.25 + "px", width: rad * 2.5 + "px", height: rad * 2.5 + "px",
+      background: `radial-gradient(circle, color-mix(in srgb, ${c} 22%, transparent) 0%, transparent 70%)` });
+    tl.fromTo(halo, { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.6 }, t0);
+    const tag = h("div", "pill", scene, { position: "absolute", left: X + "px", top: Y - rad * 1.05 - 20 + "px", transform: "translate(-50%, -50%)",
+      fontSize: portrait ? "30px" : "26px", color: c, borderColor: c, background: "#0d1430" }, esc(g.label));
+    tl.fromTo(tag, { opacity: 0, y: -14 }, { opacity: 1, y: 0, duration: 0.35 }, t0);
+    const items = (g.items || []).slice(0, 5);
+    items.forEach((it, k) => {
+      const a = (k / items.length) * Math.PI * 2 + gi + hash(it, gi) * 0.5, r = rad * (items.length > 1 ? 0.5 + 0.25 * hash(it, 7) : 0);
+      const px = X + Math.cos(a) * r, py = Y + Math.sin(a) * r * 0.8 + rad * 0.1;
+      const dot = h("div", "vdot", scene, { left: px + "px", top: py + "px", background: c, boxShadow: `0 0 18px ${c}` });
+      const lab = h("div", "vlabel", scene, { left: px + "px", top: py + 16 + "px", fontSize: portrait ? "36px" : "30px" }, esc(it));
+      spots.push({ x: px, y: py, g: gi });
+      tl.fromTo([dot, lab], { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(2)" }, t0 + 0.2 + k * 0.12);
+      tickers.push((t) => { if (t > t0 + 0.8) dot.style.transform = `translate(-50%, -50%) translate(${Math.sin(t * 1.3 + k + gi) * 4}px, ${Math.cos(t * 1.1 + k) * 4}px)`; });
+    });
+  });
+  if (!v.query) return;
+  const near = Math.min(Math.max(v.near ?? 0, 0), groups.length - 1);
+  const tq = R[groups.length] ?? end - 2;
+  const [ncx, ncy] = centers[near] || [0.5, 0.5];
+  // the query lands just outside its cluster, on the side facing the middle of the map
+  const NX = area.x + area.w * ncx, NY = area.y + area.h * ncy;
+  const away = groups.length > 1 ? Math.atan2(area.y + area.h / 2 - NY, area.x + area.w / 2 - NX) : Math.PI / 2;
+  const nrad = Math.min(area.w / (groups.length > 1 ? 2 : 1), area.h) * (groups.length > 2 ? 0.2 : 0.28);
+  const qx = NX + Math.cos(away) * nrad * 1.15, qy = NY + Math.sin(away) * nrad * 1.0 + (groups.length === 2 ? nrad * 0.75 : 0);
+  const q = h("div", "vdot query", scene, { left: qx + "px", top: qy + "px" });
+  const ql = h("div", "vlabel", scene, { left: qx + "px", top: qy + 22 + "px", fontSize: portrait ? "32px" : "28px", color: "var(--amber)", fontWeight: 850 }, esc(v.query));
+  tl.fromTo([q, ql], { opacity: 0, scale: 3 }, { opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" }, tq);
+  const pulse = h("div", "qpulse", scene, { left: qx + "px", top: qy + "px" });
+  tickers.push((t) => { const p = ((t - tq) % 1.2) / 1.2; pulse.style.opacity = t > tq + 0.4 ? 1 - p : 0; pulse.style.transform = `translate(-50%, -50%) scale(${1 + p * 3})`; });
+  spots.filter(s => s.g === near).sort((a, b) => Math.hypot(a.x - qx, a.y - qy) - Math.hypot(b.x - qx, b.y - qy)).slice(0, 3).forEach((s, k) => {
+    const len = Math.hypot(s.x - qx, s.y - qy);
+    const ln = sv("path", { d: `M${qx},${qy} L${s.x},${s.y}`, class: "edge", stroke: css("--amber"), "stroke-dasharray": `${len}`, opacity: 0.9 }, svg);
+    ln.style.strokeWidth = 4;
+    tl.fromTo(ln, { strokeDashoffset: len }, { strokeDashoffset: 0, duration: 0.45, ease: "power2.out" }, tq + 0.5 + k * 0.15);
+  });
+  const read = h("div", "vector-read", scene, { top: box.h - readH + "px", height: readH - 10 + "px", fontSize: portrait ? "34px" : "30px" });
+  const nums = [0, 1, 2, 3].map(k => ((hash(v.query, k + 3) * 2 - 1)).toFixed(2));
+  read.innerHTML = `<span style="color:var(--amber)">"${esc(v.query)}"</span> <span class="arrow">→</span> <span class="mono">[${nums.join(", ")}, …]</span>`;
+  tl.fromTo(read, { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.4 }, tq + 0.3);
+};
+
+B.network = (scene, v, box, R, start, end, portrait) => {
+  const layers = (v.layers && v.layers.length >= 2 ? v.layers : [3, 5, 5, 2]).slice(0, 6).map(n => Math.min(Math.max(+n || 1, 1), 7));
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const lab = portrait ? 90 : 70;
+  const area = { x: box.w * 0.08, y: top + lab, w: box.w * 0.84, h: box.h - top - lab * 2 - 20 };
+  const svg = svgLayer(scene);
+  const L = layers.length, gx = area.w / (L - 1);
+  const pos = layers.map((n, li) => Array.from({ length: n }, (_, k) => ({ x: area.x + li * gx, y: area.y + area.h * (k + 0.5) / n })));
+  const r = Math.min(portrait ? 34 : 30, area.h / Math.max(...layers) * 0.3);
+  const lines = [];
+  for (let li = 0; li + 1 < L; li++) pos[li].forEach(a => pos[li + 1].forEach(b => {
+    const ln = sv("line", { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: css("--violet"), "stroke-width": 2 }, svg);
+    lines.push({ el: ln, li, w: hash(`${a.x},${a.y},${b.y}`) });
+  }));
+  const tIn = R[0] ?? start + 0.3, tMid = R[1] ?? tIn + 1, tOut = R[2] ?? tMid + 1;
+  tl.fromTo(lines.map(l => l.el), { opacity: 0 }, { opacity: 0.18, duration: 0.6, stagger: 0.004 }, tMid);
+  const nodes = [];
+  pos.forEach((col_, li) => col_.forEach((p) => {
+    const c = li === 0 ? "var(--cyan)" : li === L - 1 ? "var(--amber)" : "var(--violet)";
+    const n = h("div", "neuron", scene, { left: p.x - r + "px", top: p.y - r + "px", width: r * 2 + "px", height: r * 2 + "px", borderColor: c, color: c });
+    nodes.push({ el: n, li });
+    tl.fromTo(n, { opacity: 0, scale: 0 }, { opacity: 1, scale: 1, duration: 0.35, ease: "back.out(2)" }, (li === 0 ? tIn : li === L - 1 ? tOut : tMid) + 0.04 * nodes.length % 0.4);
+  }));
+  const pills = [[v.input || "Input", 0, "var(--cyan)", tIn], [v.middle || "Hidden layers", (L - 1) / 2, "var(--violet)", tMid], [v.output || "Output", L - 1, "var(--amber)", tOut]];
+  pills.forEach(([text, li, c, t], k) => {
+    const p = h("div", "pill", scene, { position: "absolute", left: area.x + li * gx + "px", top: (k === 1 ? box.h - lab - 10 : top + 4) + "px",
+      transform: "translateX(-50%)", fontSize: portrait ? "30px" : "28px", color: c, borderColor: c, background: "#0d1430", whiteSpace: "nowrap" }, esc(text));
+    tl.fromTo(p, { opacity: 0, y: k === 1 ? 14 : -14 }, { opacity: 1, y: 0, duration: 0.35 }, t);
+  });
+  // a wave of activation sweeps input -> output, again and again
+  tickers.push((t) => {
+    if (t < tMid + 0.5) return;
+    const wave = ((t - tMid - 0.5) % 1.8) / 1.8 * (L + 0.6) - 0.3;
+    lines.forEach(l => { const d = Math.abs(wave - (l.li + 0.5)); l.el.setAttribute("opacity", d < 0.5 && l.w > 0.35 ? 0.18 + 0.7 * (1 - d * 2) : 0.18); });
+    nodes.forEach(n => { const d = Math.abs(wave - n.li); n.el.style.boxShadow = d < 0.5 ? `0 0 ${50 * (1 - d * 2)}px currentColor, inset 0 0 ${30 * (1 - d * 2)}px currentColor` : "none"; });
+  });
+};
+
+B.chat = (scene, v, box, R, start, end, portrait) => {
+  const msgs = (v.messages || []).slice(0, 4).map(m => typeof m === "string" ? { from: "user", text: m } : m);
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const ww = portrait ? box.w * 0.94 : Math.min(box.w * 0.7, 1100);
+  const win = h("div", "card chatwin", scene, { left: (box.w - ww) / 2 + "px", top: top + "px", width: ww + "px", maxHeight: box.h - top - 10 + "px" });
+  const bar = h("div", "chatbar", win, {});
+  icon("bot", 64, "var(--violet)", bar, { flexShrink: 0, borderRadius: "50%" });
+  h("div", "", bar, {}, `<b>${esc(v.bot || "AI chatbot")}</b><br><span class="online">● online</span>`);
+  popIn(win, start + 0.15, { duration: 0.45, ease: "power3.out" });
+  const body = h("div", "chatbody", win, {});
+  let fs = portrait ? 54 : 44;
+  const els = msgs.map((m, i) => {
+    const bot = m.from !== "user";
+    const b = h("div", "bubble " + (bot ? "bot" : "user"), body, {});
+    const text = h("div", "", b, {});
+    wordsIn(text, words(m.text), (R[i] ?? start + 0.6 + i * 1.2) + (bot ? 0.55 : 0), 20).forEach(s => { s.style.display = "inline-block"; s.style.marginRight = "0.25em"; });
+    return { b, bot, m };
+  });
+  const avail = box.h - top - 10 - 130;
+  const apply = () => els.forEach(({ b }) => { b.style.fontSize = fs + "px"; });
+  apply();
+  while (fs > 22 && body.scrollHeight > avail) { fs -= 2; apply(); }
+  win.style.top = top + Math.max(0, (box.h - top - win.offsetHeight) * 0.3) + "px";
+  els.forEach(({ b, bot, m }, i) => {
+    const t0 = R[i] ?? start + 0.6 + i * 1.2;
+    tl.fromTo(b, { opacity: 0, y: 30, scale: 0.9 }, { opacity: 1, y: 0, scale: 1, duration: 0.35, ease: "back.out(1.6)",
+      transformOrigin: bot ? "left bottom" : "right bottom" }, t0);
+    if (bot) {  // "typing…" dots first
+      const dots = h("div", "typing", b, {}, "<i></i><i></i><i></i>");
+      tickers.push((t) => {
+        const on = t >= t0 && t < t0 + 0.55;
+        dots.style.display = on ? "flex" : "none";
+        if (on) [...dots.children].forEach((d, k) => { d.style.opacity = 0.3 + 0.7 * Math.max(0, Math.sin((t * 8) - k)); });
+      });
+    }
+    if (m.flag === "wrong" || m.flag === "right") {
+      const bad = m.flag === "wrong";
+      const st = h("div", "stamp " + (bad ? "bad" : "good"), b, { fontSize: Math.max(fs * 0.7, 22) + "px" },
+        esc(m.note || (bad ? "MADE UP!" : "✓ FROM SOURCES")));
+      tl.fromTo(st, { opacity: 0, scale: 2.2, rotation: bad ? -18 : 0 }, { opacity: 1, scale: 1, rotation: bad ? -8 : 0, duration: 0.35, ease: "power4.in" },
+        t0 + 0.55 + Math.min(words(m.text).length * 0.06, 1.4) + 0.3);
+    }
+  });
+};
+
 // ---------- stage ----------
 window.load = async (data) => {
   D = data;
+  if (D.theme) document.documentElement.dataset.theme = D.theme;
   await document.fonts.ready;
   const { W, H } = D;
   document.body.style.width = W + "px";
@@ -426,6 +665,18 @@ window.load = async (data) => {
 
   const stage = h("div", "", frame, { left: L.stage.x + "px", top: L.stage.y + "px", width: L.stage.w + "px", height: L.stage.h + "px" });
   stage.id = "stage";
+  const flash = h("div", "", frame, { position: "absolute", inset: 0, background: "#e0f2fe", opacity: 0, zIndex: 4, pointerEvents: "none", mixBlendMode: "screen" });
+  const flashes = [];
+  tickers.push((t) => {
+    const d = Math.min(...flashes.map(f => (t >= f ? t - f : 9)), 9);
+    flash.style.opacity = d < 0.35 ? 0.55 * (1 - d / 0.35) : 0;
+  });
+  const CUTS = [
+    [{ y: 50, scale: 0.97 }, { y: -40, scale: 1.02 }],                                  // slide up
+    [{ scale: 1.3, filter: "blur(14px)" }, { scale: 0.85, filter: "blur(10px)" }],     // zoom punch
+    [{ x: W * 0.6, rotation: 3, filter: "blur(10px)" }, { x: -W * 0.6, rotation: -3, filter: "blur(10px)" }],  // whip pan
+    [{ scale: 0.6, rotation: -6 }, { scale: 1.4 }],                                       // pop
+  ];
   const box = { w: L.stage.w, h: L.stage.h };
   tl = gsap.timeline({ paused: true });
   const portrait = H > W;
@@ -438,15 +689,28 @@ window.load = async (data) => {
     } catch (e) {
       console.error("builder failed", blk.visual.type, e && e.stack);
     }
-    tl.fromTo(scene, { opacity: 0, y: 50, scale: 0.97 }, { opacity: 1, y: 0, scale: 1, duration: 0.45, ease: "power3.out" }, blk.start);
+    // cuts rotate between a few editing styles so the eye keeps getting something new
+    const [inFrom, outTo] = i === 0 ? CUTS[0] : CUTS[i % CUTS.length];
+    tl.fromTo(scene, Object.assign({ opacity: 0 }, inFrom), { opacity: 1, x: 0, y: 0, scale: 1, rotation: 0, filter: "blur(0px)", duration: 0.42, ease: "power3.out" }, blk.start);
     tl.fromTo(zoom, { scale: 1 }, { scale: 1.035, duration: Math.max(blk.end - blk.start, 0.5), ease: "none" }, blk.start);
-    if (i < D.blocks.length - 1) tl.to(scene, { opacity: 0, y: -40, scale: 1.02, duration: 0.3, ease: "power2.in" }, blk.end - 0.3);
+    if (i < D.blocks.length - 1) tl.to(scene, Object.assign({ opacity: 0, duration: 0.28, ease: "power2.in" }, outTo), blk.end - 0.28);
+    if (i > 0 && i % CUTS.length === 2) {  // a quick light flash on some cuts
+      flashes.push(blk.start);
+    }
+  });
+  // punch-in + tiny shake when Thoma is surprised: a classic retention beat
+  (D.thoma.moods || []).filter(([, m]) => m === "wow").forEach(([t]) => {
+    tl.to(stage, { scale: 1.07, duration: 0.18, ease: "power2.out" }, t);
+    tl.to(stage, { scale: 1, duration: 0.5, ease: "power2.inOut" }, t + 0.5);
+    tl.fromTo(frame, { x: 0 }, { x: 0, duration: 0.3, ease: "none", keyframes: { x: [0, -8, 7, -5, 3, 0] } }, t);
   });
 
   const th = h("div", "", frame, { left: L.thoma.x + "px", top: L.thoma.y + "px" });
   th.id = "thoma";
   mascot = buildMascot(th, L.thoma.w);
-  tl.fromTo(th, { y: 260, scale: 0.4 }, { y: 0, scale: 1, duration: 0.7, ease: "back.out(1.8)" }, 0.1);
+  // he flies in on his spear from off-screen right
+  tl.fromTo(th, { x: 700, y: -160, rotation: -14 }, { x: 0, y: 0, rotation: 0, duration: 0.9, ease: "power3.out" }, 0.05);
+  cuts = D.blocks.slice(1).map(b => b.start);
 
   if (D.captions && D.captions.length) {
     capEl = h("div", "", frame, { top: L.captions_y + "px", fontSize: L.caption_size + "px" });
@@ -463,7 +727,9 @@ window.seek = (t) => {
   let mood = "talk", since = 0;
   for (const [mt, mm] of M.moods) { if (mt <= t) { mood = mm; since = mt; } else break; }
   const blink = M.blinks.some(b => t >= b && t < b + 0.13);
-  mascot.update(t, M.mouth[fi], mood, M.mouth[fi] > 0, blink, t - since);
+  let cut = 9;
+  for (const c of cuts) if (c <= t) cut = t - c; else break;
+  mascot.update(t, M.mouth[fi], mood, M.mouth[fi] > 0, blink, t - since, cut);
   if (capEl) {
     const g = D.captions.find(c => t >= c.start && t < c.end);
     let key = "";

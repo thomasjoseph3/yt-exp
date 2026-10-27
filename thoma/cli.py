@@ -41,6 +41,8 @@ def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s",
                         handlers=[logging.StreamHandler(),
                                   RotatingFileHandler(DATA / "studio.log", maxBytes=5 << 20, backupCount=3)])
+    for name in ("httpx", "httpx2", "httpcore"):  # request URLs carry API keys and the Telegram token
+        logging.getLogger(name).setLevel(logging.WARNING)
     from . import db, ideas, pipeline
 
     if a.cmd == "ideas":

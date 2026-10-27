@@ -1,6 +1,7 @@
 // Thoma the tech imp: a small comic mascot drawn in SVG and animated per frame.
-// buildMascot(parent, width) -> { el, update(t, mouth 0-3, mood, speaking) }
+// buildMascot(parent, width) -> { el, update(t, mouth 0-3, mood, speaking, blink, moodAge, sinceCut) }
 // moods: talk | point | think | wow | laugh | wave
+// He rides a glowing tech spear that hovers in the corner, and swoops a little at every scene cut.
 
 const MASCOT = {
   body: "#8b5cf6", dark: "#6d28d9", belly: "#c4b5fd", horn: "#fbbf24", hornDark: "#d97706",
@@ -13,7 +14,7 @@ function buildMascot(parent, width) {
   wrap.style.cssText = `position:absolute;width:${width}px;height:${width * 1.3}px;`;
   wrap.innerHTML = `
 <svg viewBox="0 0 200 260" width="100%" height="100%" style="overflow:visible">
-  <ellipse cx="100" cy="252" rx="52" ry="7" fill="rgba(0,0,0,0.35)" class="m-shadow"/>
+  <ellipse cx="96" cy="268" rx="70" ry="7" fill="rgba(0,0,0,0.3)" class="m-shadow"/>
   <g class="m-all">
     <g class="m-tail">
       <path d="M128 196 C 168 206, 182 168, 166 140 S 176 104, 190 100" fill="none" stroke="${c.ink}" stroke-width="13" stroke-linecap="round"/>
@@ -21,12 +22,21 @@ function buildMascot(parent, width) {
       <path d="M190 100 l-6 -20 l20 6 z M190 100 l-16 -2 l12 -12 z" fill="${c.dark}" stroke="${c.ink}" stroke-width="3" stroke-linejoin="round"
             transform="rotate(10 190 100)"/>
     </g>
-    <g class="m-legs">
-      <path d="M84 214 q-2 22 -14 30 h20 q6 -10 6 -28" fill="${c.dark}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
-      <path d="M116 214 q2 22 14 30 h-20 q-6 -10 -6 -28" fill="${c.dark}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
-    </g>
     <ellipse cx="100" cy="186" rx="44" ry="40" fill="${c.body}" stroke="${c.ink}" stroke-width="4.5"/>
     <ellipse cx="100" cy="194" rx="26" ry="24" fill="${c.belly}" opacity="0.9"/>
+    <g class="m-spear">
+      <g class="m-thrust" fill="${c.glow}"><circle r="5"/><circle r="5"/><circle r="5"/><circle r="5"/><circle r="5"/></g>
+      <path d="M212 224 l20 -16 l-5 16 l5 16 z" fill="${c.glow}" stroke="${c.ink}" stroke-width="3.5" stroke-linejoin="round" opacity="0.9"/>
+      <rect x="-6" y="218" width="224" height="12" rx="6" fill="${c.horn}" stroke="${c.ink}" stroke-width="4"/>
+      <path d="M40 219 v10 M150 219 v10 M160 219 v10" stroke="${c.hornDark}" stroke-width="5"/>
+      <rect x="-12" y="214" width="12" height="20" rx="4" fill="${c.hornDark}" stroke="${c.ink}" stroke-width="3.5"/>
+      <path class="m-tip" d="M-12 212 L-58 224 L-12 236 Q-4 224 -12 212 z" fill="${c.glow}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M-18 220 L-44 224 L-18 228" fill="none" stroke="#e0fbff" stroke-width="3" stroke-linecap="round" opacity="0.8"/>
+    </g>
+    <g class="m-legs">
+      <path d="M80 222 q-8 14 -6 30 h17 q-1 -14 5 -28" fill="${c.dark}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M120 222 q8 14 6 30 h-17 q1 -14 -5 -28" fill="${c.dark}" stroke="${c.ink}" stroke-width="4" stroke-linejoin="round"/>
+    </g>
     <g class="m-armR">
       <path d="M138 172 q20 6 26 26" fill="none" stroke="${c.ink}" stroke-width="15" stroke-linecap="round"/>
       <path d="M138 172 q20 6 26 26" fill="none" stroke="${c.body}" stroke-width="9" stroke-linecap="round"/>
@@ -91,15 +101,29 @@ function buildMascot(parent, width) {
     finger: q(".m-finger"), pupils: q(".m-pupils"), lids: q(".m-lids"), eyes: [...wrap.querySelectorAll(".m-eyes > circle")],
     browL: q(".m-browL"), browR: q(".m-browR"), mouths: [0, 1, 2, 3].map(i => q(".m" + i)),
     q: q(".fx-q"), ex: q(".fx-ex"), spark: q(".fx-spark"), shadow: q(".m-shadow"), stylus: q(".m-stylus"),
+    spear: q(".m-spear"), legs: q(".m-legs"), tip: q(".m-tip"), thrust: [...wrap.querySelectorAll(".m-thrust circle")],
   };
   const set = (el, tr) => el.setAttribute("transform", tr);
 
-  function update(t, mouth, mood, speaking, blink, moodAge) {
+  function update(t, mouth, mood, speaking, blink, moodAge, sinceCut = 9) {
     const hop = mood === "wow" ? Math.max(0, Math.sin(Math.min(moodAge, 0.5) * Math.PI / 0.5)) * 22 : 0;
     const bounce = mood === "laugh" ? Math.abs(Math.sin(t * 14)) * 6 : 0;
-    const float = Math.sin(t * 2.2) * 4 + (speaking ? Math.sin(t * 9) * 1.2 : 0);
-    set(parts.all, `translate(0 ${float - hop - bounce})`);
-    parts.shadow.setAttribute("rx", 52 - (float + hop) * 0.6);
+    const float = Math.sin(t * 2.2) * 6 + (speaking ? Math.sin(t * 9) * 1.2 : 0);
+    // swoop forward on the spear at every scene cut
+    const sw = sinceCut < 0.8 ? Math.sin(Math.PI * sinceCut / 0.8) : 0;
+    set(parts.all, `translate(${-34 * sw} ${float - hop - bounce + 10 * sw}) rotate(${-9 * sw + Math.sin(t * 1.7) * 1.5} 100 200)`);
+    parts.shadow.setAttribute("rx", 70 - (float + hop) * 0.8);
+    parts.shadow.setAttribute("opacity", 0.8 - sw * 0.4);
+    set(parts.spear, `rotate(${-5 + Math.sin(t * 2.2 + 0.6) * 2} 100 224)`);
+    set(parts.legs, `rotate(${Math.sin(t * 2.6) * 5 + sw * 14} 100 222)`);
+    parts.tip.style.filter = `drop-shadow(0 0 ${8 + Math.sin(t * 5) * 4 + sw * 10}px ${c.glow})`;
+    parts.thrust.forEach((d, k) => {  // little cyan sparks streaming off the back of the spear
+      const ph = (t * (1.6 + sw * 3) + k / parts.thrust.length) % 1;
+      d.setAttribute("cx", 234 + ph * (36 + sw * 40));
+      d.setAttribute("cy", 224 + Math.sin(t * 7 + k * 2) * 4 * ph);
+      d.setAttribute("r", 6 * (1 - ph));
+      d.setAttribute("opacity", 0.9 * (1 - ph));
+    });
     set(parts.tail, `rotate(${Math.sin(t * 2.8) * 12 + (mood === "wow" ? -15 : 0)} 128 196)`);
     const tilt = mood === "think" ? -8 : mood === "point" ? -5 : Math.sin(t * 1.3) * 3;
     set(parts.head, `rotate(${tilt} 100 150)`);

@@ -47,3 +47,13 @@ What is a knowledge graph?
 What is edge AI?
 What is an AI model benchmark?
 What is AI governance?
+Is AI actually intelligent, or just good at faking it?
+Does ChatGPT understand what it says?
+Will AI replace programmers?
+Can AI ever be conscious?
+How does vectorisation turn words into numbers?
+How does ChatGPT remember a conversation?
+Why does ChatGPT get maths wrong?
+How does semantic search find meaning, not keywords?
+Is your data being used to train AI?
+Why do AI models hallucinate, and can it be fixed?

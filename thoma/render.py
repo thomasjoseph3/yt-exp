@@ -33,6 +33,7 @@ LAYOUTS = {
              "brand": {"x": 70, "y": 46, "size": 32}},
 }
 MOODS = {"talk", "point", "think", "wow", "laugh", "wave"}
+THEMES = ["midnight", "ocean", "ember", "matrix"]  # looks rotate per video so the channel never feels templated
 
 
 def _thoma_track(scenes, spans, blocks, track, fps, n_frames):
@@ -71,13 +72,17 @@ def _srt(words, path: Path):
     def ts(t):
         ms = int(round(t * 1000))
         return f"{ms // 3600000:02}:{ms // 60000 % 60:02}:{ms // 1000 % 60:02},{ms % 1000:03}"
-    out, n = [], 0
+    # lines end where a sentence ends (or at a comma once long enough), never mid-sentence like "...thinker. Which"
+    chunks, cur = [], []
     for scene_words in words:
-        for i in range(0, len(scene_words), 8):
-            chunk = scene_words[i:i + 8]
-            n += 1
-            text = " ".join(w for w, _, _ in chunk)
-            out.append(f"{n}\n{ts(chunk[0][1])} --> {ts(chunk[-1][2])}\n{text}\n")
+        for w in scene_words:
+            cur.append(w)
+            if w[0][-1] in ".?!" or len(cur) >= 9 or (len(cur) >= 5 and w[0][-1] in ",;:"):
+                chunks.append(cur)
+                cur = []
+    if cur:
+        chunks.append(cur)
+    out = [f"{n}\n{ts(c[0][1])} --> {ts(c[-1][2])}\n{' '.join(w for w, _, _ in c)}\n" for n, c in enumerate(chunks, 1)]
     path.write_text("\n".join(out))
 
 
@@ -141,7 +146,7 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     W, H = L["W"], L["H"]
     scenes = script["scenes"]
 
-    track, spans, words = voice.narrate(scenes)
+    track, spans, words = voice.narrate(scenes, out_dir / "takes")
     limit = 58.5 if kind == "short" else 12 * 60
     if len(track) / voice.SR > limit:  # a Short must stay under a minute: speak a little faster
         factor = len(track) / voice.SR / (limit - 0.5)
@@ -165,12 +170,14 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     used = visuals.icons_used([b["visual"] for b in blocks])
     data = {
         "kind": kind, "W": W, "H": H, "fps": fps, "duration": duration, "n_frames": n_frames,
+        "theme": script.get("theme") or THEMES[sum(map(ord, out_dir.name)) % len(THEMES)],
         "title": script["title"],
         "layout": {k: L[k] for k in ("stage", "thoma", "captions_y", "caption_size", "brand")},
         "blocks": blocks, "captions": _captions(words) if L["captions_y"] else [],
         "thoma": thoma,
         "icons": {name: visuals.icon_svg(name) for name in used},
     }
+    data["scenes"] = [[round(a, 2), round(b, 2)] for a, b in spans]  # lets the owner's "/fix at 0:23" find the scene
     (out_dir / "timeline.json").write_text(json.dumps({k: v for k, v in data.items() if k not in ("thoma", "icons")}, indent=1))
     return data
 

@@ -67,7 +67,43 @@ def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> i
         note = f"It gets the next free slot automatically. /reject {vid} to drop it"
     mid = notify.send_file(path, f"#{vid} {kind} ready: {script['title']}\n{note}")
     db.set_kv(f"telegram_msg:{vid}", mid)
+    upload_pack(script, kind, path.parent, mid)
     return vid
+
+
+def fix(vid: int, feedback: str) -> None:
+    """Owner's correction: rewrite only the scenes they mean, re-voice only what changed, re-render."""
+    from . import render
+    v = db.video(vid)
+    kind, script = v["kind"], json.loads(v["script"])
+    out_dir = OUT / f"{vid:04d}-{kind}"
+    tlj = out_dir / "timeline.json"
+    times = json.loads(tlj.read_text()).get("scenes") if tlj.exists() else None
+    with db.conn() as c:
+        idea = c.execute("SELECT * FROM ideas WHERE id=?", (v["idea_id"],)).fetchone() if v["idea_id"] else None
+    new = writer.revise(script, kind, feedback, idea, times)
+    changed = [i for i, (a, b) in enumerate(zip(script["scenes"], new["scenes"]), 1) if a != b]
+    changed += list(range(len(script["scenes"]) + 1, len(new["scenes"]) + 1))
+    db.update_video(vid, status="rendering", title=new["title"], script=json.dumps(new, ensure_ascii=False))
+    (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False))
+    path = render.render(new, kind, out_dir)
+    (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False))
+    db.update_video(vid, status="ready", path=str(path), script=json.dumps(new, ensure_ascii=False), publish_at=None)
+    note = f"changed scene(s) {', '.join(map(str, changed))}" if changed else "no scene text changed"
+    mid = notify.send_file(path, f"#{vid} fixed ({note}): {new['title']}\nReply /approve {vid}, or /fix {vid} ... again")
+    db.set_kv(f"telegram_msg:{vid}", mid)
+    upload_pack(new, kind, out_dir, mid)
+
+
+def upload_pack(script: dict, kind: str, out_dir, reply_to=None):
+    """Everything needed to post the video by hand: title, description, tags, thumbnail, pinned comment."""
+    from .publish import caption
+    tags = ", ".join(script.get("tags", []))
+    notify.send(f"UPLOAD PACK\n\nTitle:\n{script['title']}\n\nDescription:\n{caption(script, kind, 'youtube')}\n\n"
+                f"Tags:\n{tags}\n\nPin this comment:\n{script.get('pinned_comment', '')}", reply_to=reply_to)
+    thumb = out_dir / "thumbnail.jpg"
+    if kind == "long" and thumb.exists():
+        notify.send_photo(thumb, "Thumbnail (1280x720)", reply_to=reply_to)
 
 
 def slots(kind: str, after: datetime, hours: float) -> list[datetime]:
@@ -201,13 +237,29 @@ def _handle_owner_replies():
         if cmd == "approve" and v and v["status"] == "ready":
             db.update_video(vid, status="approved")
             notify.send(f"#{vid} approved; it goes into the next free slot.")
-        elif cmd == "reject" and v and v["status"] in ("ready", "approved", "scheduled"):
+        elif cmd == "reject" and v and v["status"] in ("ready", "approved", "scheduled"):  # (a rejected video can still be /fix-ed)
             if v["status"] == "scheduled":
                 _cancel_youtube(vid)
             db.update_video(vid, status="rejected", error=arg, publish_at=None)
             notify.send(f"#{vid} rejected.")
         elif cmd == "topic" and arg:
             notify.send(f"Got it: '{arg}' is next in line (idea #{ideas.add_topic(arg)}).")
+        elif cmd in ("short", "reel", "long") and arg:  # owner's own idea: research and make it right away
+            kind = "long" if cmd == "long" else "short"
+            queue = db.get_kv("make_now", []) + [[kind, ideas.add_topic(arg)]]
+            db.set_kv("make_now", queue)
+            notify.send(f"On it: researching and making a {kind} about '{arg}'. "
+                        f"It comes here for your OK in about {'45' if kind == 'long' else '10'} minutes.")
+        elif cmd in ("fix", "edit", "change") and v and arg.split(maxsplit=1)[1:]:
+            if v["status"] in ("ready", "approved", "failed", "rejected"):
+                db.set_kv("fix_now", db.get_kv("fix_now", []) + [[vid, arg.split(maxsplit=1)[1]]])
+                notify.send(f"Fixing #{vid}: I'll change only that part and send you the new version.")
+            else:
+                notify.send(f"#{vid} is already {v['status']}. Send /reject {vid} first, then /fix {vid} ... "
+                            "and I'll make a corrected copy.")
+        elif cmd in ("publish", "now") and v and v["status"] in ("ready", "approved"):
+            notify.send(f"#{vid} going out now.")
+            schedule(vid, at=local_now())
         elif cmd == "status":
             notify.send(status_text())
         elif cmd in ("pause", "resume"):
@@ -268,6 +320,27 @@ def tick():
     try:
         publish_due()
         _schedule_ready()
+        while db.get_kv("fix_now", []):  # owner's /fix requests first: they're waiting on them
+            queue = db.get_kv("fix_now", [])
+            db.set_kv("fix_now", queue[1:])
+            try:
+                fix(*queue[0])
+            except AllProvidersFailed:
+                db.set_kv("fix_now", queue[:1] + db.get_kv("fix_now", []))
+                raise
+            except Exception as e:
+                notify.send(f"Could not fix #{queue[0][0]}: {str(e)[:300]}")
+        while db.get_kv("make_now", []):  # owner's /short and /long requests jump the queue
+            queue = db.get_kv("make_now", [])
+            kind, idea_id = queue[0]
+            db.set_kv("make_now", queue[1:])
+            try:
+                make(kind, idea_id)
+            except AllProvidersFailed:
+                db.set_kv("make_now", [[kind, idea_id]] + db.get_kv("make_now", []))  # try again next tick
+                raise
+            except Exception as e:
+                notify.send(f"Could not make your {kind} (idea #{idea_id}): {str(e)[:300]}")
         last = db.get_kv("ideas_refreshed")
         if not last or datetime.fromisoformat(last) < datetime.now() - timedelta(hours=cfg()["sources"]["refresh_hours"]):
             ideas.refresh()

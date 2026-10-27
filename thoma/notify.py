@@ -66,6 +66,14 @@ def send_file(path: Path, text: str) -> int | None:
     return res["result"]["message_id"]
 
 
+def send_photo(path: Path, text: str = "", reply_to: int | None = None):
+    with path.open("rb") as f:
+        data = {"chat_id": secret("TELEGRAM_CHAT_ID"), "caption": text[:1000]}
+        if reply_to:
+            data["reply_to_message_id"] = reply_to
+        _api("sendDocument", data=data, files={"document": (path.name, f, "image/jpeg")})
+
+
 def commands() -> list[tuple[str, str]]:
     """New '/approve 12', '/reject 12 reason' messages from the owner's chat."""
     offset = db.get_kv("telegram_offset", 0)

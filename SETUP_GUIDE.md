@@ -306,6 +306,13 @@ Most days you only touch your phone:
 - **After it's on YouTube**: the bot replies with the caption for Instagram/Facebook. Save the video
   from Telegram and post it from the app with that caption.
 - **Want a specific topic?** Send `/topic What is Docker?` and it's next in line.
+- **Have your own idea for a Reel?** Send `/short <your idea>` (or `/long <your idea>`). The studio
+  researches it and makes it right away, then sends it for your OK. For brand-new tech, add a link
+  (`/short this new AI tool https://...`): the studio reads that page, so the facts are current.
+- **Want an approved video out right now** instead of at the next slot? Send `/publish 12`.
+- **Spotted a mistake?** Send `/fix 12 at 0:23 the word "machinery" is too technical, say it simply`
+  (or "scene 4 is wrong: it's 2026, not 2024"). The studio changes only that part, re-records only the
+  voice that changed, re-renders, and sends you the new version. Already uploaded? `/reject 12` first.
 - **Going on holiday?** `/pause`, then `/resume` later. `/status` shows what's going on.
 
 To change how it works (posting times, how many Shorts, the voice, Thoma's personality), edit

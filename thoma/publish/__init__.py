@@ -15,7 +15,9 @@ def caption(script: dict, kind: str, platform: str) -> str:
     credit = ""
     if script.get("music"):
         credit = cfg()["music"]["credit"].format(track=script["music"]) + "\n"
-    return f"{script['description']}\n\n{links}{chapters}{tags}\n\n{credit}{DISCLOSURE}"
+    handle = (cfg()["channel"].get("youtube_handle") or "").lstrip("@")
+    sub = f"New AI explainer every day. Subscribe: https://www.youtube.com/@{handle}?sub_confirmation=1\n\n" if handle else ""
+    return f"{script['description']}\n\n{sub}{links}{chapters}{tags}\n\n{credit}{DISCLOSURE}"
 
 
 def _affiliate_links(script: dict) -> str:

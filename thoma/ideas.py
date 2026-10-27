@@ -5,6 +5,8 @@ scripts are written from scratch, and writer.py blocks copied phrasing.
 """
 import difflib
 import logging
+import re
+import time
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -69,9 +71,31 @@ def _tools_feed(url: str) -> list[dict]:
     return items
 
 
+def _channel_page(channel_id: str, per_tab: int = 8) -> list[dict]:
+    """Latest videos and Shorts read from the channel's public pages (when the feed is down)."""
+    items, ua = [], {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)", "Accept-Language": "en"}
+    for tab in ("videos", "shorts"):
+        page = httpx.get(f"https://www.youtube.com/channel/{channel_id}/{tab}", headers=ua, timeout=30,
+                         follow_redirects=True).text
+        for vid in list(dict.fromkeys(re.findall(r'"videoId":"([\w-]{11})"', page)))[:per_tab]:
+            o = httpx.get("https://www.youtube.com/oembed", params={"url": f"https://www.youtube.com/watch?v={vid}",
+                          "format": "json"}, timeout=20)
+            if o.status_code == 200:
+                items.append({"ref": vid, "title": o.json()["title"], "text": ""})
+    return items
+
+
 def _rss(channel_id: str) -> list[dict]:
-    r = httpx.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}", timeout=30)
-    r.raise_for_status()
+    """The channel's feed; YouTube's feeds fail now and then, so fall back to the channel pages."""
+    r = None
+    for _ in range(3):
+        r = httpx.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}", timeout=30)
+        if r.status_code == 200:
+            break
+        time.sleep(3)
+    if r.status_code != 200:
+        log.info("feed for %s returned %s, reading the channel page instead", channel_id, r.status_code)
+        return _channel_page(channel_id)
     items = []
     for e in ET.fromstring(r.text).findall("a:entry", NS):
         items.append({
@@ -198,7 +222,7 @@ def add_topic(topic: str) -> int:
     """An owner request jumps the queue: it is used for the next video of either kind."""
     with db.conn() as c:
         return c.execute("INSERT INTO ideas (source, source_ref, topic, status, priority, created)"
-                         " VALUES ('owner', ?, ?, 'new', 9, ?)", ("owner:" + db.now(), topic.strip(), db.now())).lastrowid
+                         " VALUES ('owner', ?, ?, 'new', 9, ?)", (f"owner:{db.now()}:{topic.strip().lower()}", topic.strip(), db.now())).lastrowid
 
 
 def next_idea(kind: str):

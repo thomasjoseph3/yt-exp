@@ -9,3 +9,4 @@ changing anything, and update them when a decision changes.
 - [Run long jobs in the background](background-long-jobs.md): never block on renders
 - [Owner profile](thoma-owner-profile.md): goals and working style
 - [Use own judgment](use-own-judgment.md): reference docs explain the goal; design the system yourself
+- [Simple language required](simple-language-required.md): 10th-standard students must understand every video; one concrete example

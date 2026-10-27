@@ -41,12 +41,25 @@ Visual types:
   {"type":"compare","heading":"<=40","left":{"label":"<=20","icon":"...","items":["<=30", ...<=4]},"right":{same}}
   {"type":"analogy","left":{"label":"everyday thing <=26","icon":"..."},"right":{"label":"the tech <=26","icon":"..."},"note":"optional <=60"}
   {"type":"code","heading":"optional","lang":"python|javascript|bash|sql|json","lines":["<=48 chars", ...<=10],"output":["optional terminal output lines"]}
+  {"type":"tokens","text":"<=60 chars sentence","tokens":["optional","pieces"],"label":"optional word Thoma says when it splits, default tokens"}
+     the sentence splits into coloured token chips with their ID numbers (how an LLM reads text)
+  {"type":"predict","prompt":"<=70 chars unfinished sentence","options":[{"word":"<=14","p":62}, ...2-5],"pick":0,"label":"optional <=60"}
+     next-word prediction: probability bars fill up, then the picked word drops into the prompt
+  {"type":"vectors","heading":"optional","groups":[{"label":"<=14","items":["<=12", ...2-5]}, ...1-4],"query":"optional <=14","near":0}
+     embedding space: words as dots, similar meanings cluster; the query lands next to group "near"
+  {"type":"network","heading":"optional","layers":[3,5,5,2],"input":"<=18","middle":"<=22","output":"<=18"}
+     a neural network: input -> hidden layers -> output, with signals flowing through
+  {"type":"chat","bot":"optional name","messages":[{"from":"user|bot","text":"<=80 chars","flag":"wrong|right|none","note":"optional stamp <=16"}, ...1-4]}
+     a chat window; bot replies type out; flag "wrong" stamps a hallucination, "right" a sourced answer
   {"type":"keep"}       (same visual stays; use when the line continues the previous graphic)
   {"type":"takeaway","text":"<=90 chars, with *highlight*"}   (last scene only)
 
 Make it look like a proper animated tech explainer (think Fireship pace, ByteMonk diagrams):
-mostly diagrams, steps, compares and analogies; a title or bigtext to open or to land a
-punchline; a stat for a striking number; code only when it helps. Change the visual every 1-2
+SHOW the mechanism, don't just name it. For AI topics use the concept visuals: tokens for how a model
+reads text, predict for next-word guessing, vectors for embeddings/semantic search/RAG retrieval,
+network for neural nets/training, chat for what a chatbot does (and hallucinations). Use at least
+one concept visual when the topic is about how AI works. Otherwise mostly diagrams, steps, compares and
+analogies; a title or bigtext to open or to land a punchline; a stat for a striking number; code only when it helps. Change the visual every 1-2
 sentences (every 4-10 seconds) so the screen never sits still. Node labels and list items should
 be words Thoma actually says, so they appear on screen as he says them."""
 
@@ -96,6 +109,29 @@ def normalize(v: dict) -> dict:
             v[side]["icon"] = fix_icon(v[side]["icon"])
         elif isinstance(v.get(side), str):
             v[side] = {"label": v[side]}
+    if v.get("type") == "predict":
+        opts = [{"word": o} if isinstance(o, str) else dict(o) for o in v.get("options") or []][:5]
+        for o in opts:
+            o["word"] = str(o.get("word", ""))
+            try:
+                o["p"] = float(str(o.get("p", 0)).rstrip("%"))
+            except ValueError:
+                o["p"] = 0.0
+        v["options"] = opts
+        try:
+            v["pick"] = min(max(int(v.get("pick", 0)), 0), max(len(opts) - 1, 0))
+        except (TypeError, ValueError):
+            v["pick"] = 0
+    if v.get("type") == "vectors":
+        v["groups"] = [({"label": g, "items": []} if isinstance(g, str) else
+                        {"label": str(g.get("label", "")), "items": [str(x) for x in g.get("items") or []][:5]})
+                       for g in v.get("groups") or []][:4]
+        try:
+            v["near"] = min(max(int(v.get("near", 0)), 0), max(len(v["groups"]) - 1, 0))
+        except (TypeError, ValueError):
+            v["near"] = 0
+    if v.get("type") == "chat":
+        v["messages"] = [({"from": "user", "text": m} if isinstance(m, str) else dict(m)) for m in v.get("messages") or []][:4]
     if v.get("type") == "steps":
         v["items"] = [({"text": x} if isinstance(x, str) else {**x, "icon": fix_icon(x["icon"]) if x.get("icon") else None})
                       for x in v.get("items") or []]
@@ -103,7 +139,7 @@ def normalize(v: dict) -> dict:
 
 
 def icons_used(visuals) -> set[str]:
-    found = {"sparkles", "bell", "box", "check", "x", "cpu", "coffee"}
+    found = {"sparkles", "bell", "box", "check", "x", "cpu", "coffee", "bot"}
     for v in visuals:
         for key in ("icon",):
             if v.get(key):
@@ -138,6 +174,17 @@ def elements(v: dict) -> tuple[list[str], bool]:
         return list(v.get("lines", [])) + (["output"] if v.get("output") else []), True
     if t == "takeaway":
         return [v.get("text", "")], False
+    if t == "tokens":
+        return [v.get("text", ""), v.get("label") or "tokens"], False
+    if t == "predict":
+        opts = [o.get("word", "") for o in v.get("options", [])]
+        return [v.get("prompt", "")] + opts + [opts[v.get("pick", 0)] if opts else ""], False
+    if t == "vectors":
+        return [g.get("label", "") for g in v.get("groups", [])] + ([v["query"]] if v.get("query") else []), False
+    if t == "network":
+        return [v.get("input") or "input", v.get("middle") or "layers", v.get("output") or "output"], False
+    if t == "chat":
+        return [m.get("text", "") for m in v.get("messages", [])], False
     return [], True
 
 

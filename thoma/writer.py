@@ -21,12 +21,18 @@ FORMATS = {
         "will understand. No greeting, no self-introduction. One concept only: one analogy, one diagram, one "
         "'here's the trick' moment. The last line lands the takeaway, ends with 'Thoma out!', and should flow "
         "back into the hook so the Short loops naturally.")},
-    "long": {"words": (650, 850), "target": "700-800", "scenes": (20, 34), "max_per_visual": 32, "signoff": "thoma out", "spec": (
-        "A 16:9 tutorial of about 5 minutes (650-850 spoken words). Scene 1 is the hook (what the viewer will "
-        "understand and why it matters). Scene 2: 'I'm Thoma, your friendly neighbourhood tech imp. Let's poke at "
-        "<topic>.' Then: the analogy, the real explanation step by step with diagrams, one concrete example (code "
-        "if it is a coding topic), one common misconception, where it shows up in real life, and the takeaway. "
-        "Mark 4-6 section starts with \"chapter\": \"<=30 chars\" on that scene (YouTube chapters). "
+    # 8+ minutes: YouTube only allows mid-roll ads from 8:00, which roughly doubles what a video earns.
+    "long": {"words": (1340, 1600), "target": "1400-1500", "scenes": (45, 85), "max_per_visual": 32, "signoff": "thoma out", "spec": (
+        "A 16:9 deep-dive of 8-9 minutes (1400-1500 spoken words; it must not be shorter, mid-roll ads need 8:00). "
+        "Scene 1-2 is the hook: what the viewer will finally understand, why it matters to them, and an open "
+        "loop ('by the end you'll know why ...'). Scene 3: 'I'm Thoma, your friendly neighbourhood tech imp. Let's "
+        "poke at <topic>.' Then 5-7 chapters that build on each other: the everyday analogy, the real mechanism "
+        "step by step SHOWN with concept visuals and diagrams, a concrete worked example (code if it is a coding "
+        "topic), the common misconception, what it means in real life and what's new in the field, then the "
+        "takeaway. Every 60-90 seconds re-hook the viewer with a new question or twist ('but here's where it gets "
+        "weird...'). Around the middle, one natural line inviting people to subscribe for a new explainer every "
+        "day (never 'smash the like button'). Pay off the opening loop near the end. Mark 6-9 section starts "
+        "with \"chapter\": \"<=30 chars\" on that scene (YouTube chapters). "
         "The last line ends with 'Stay curious. Thoma out!'")},
 }
 
@@ -45,6 +51,13 @@ SHORT_FORMATS = {
             "diagram visual), who it's great for, and one honest limitation. Mention price only if the research "
             "notes state it, phrased 'as of <month year>'. Never invent features. It must feel like a friend's "
             "tip, not an advert. Title like '<Tool>: the AI that <does X> (in 60 seconds)'.",
+    "debate": "Format: the big debate, settled with facts. Open with the question people argue about, in "
+              "plain words (scene 1, a compare visual of the two camps). Then SHOW what is really happening "
+              "inside, step by step, with concept visuals (tokens / predict / vectors / network / chat), so the "
+              "viewer can judge for themselves. Give Thoma's honest verdict based only on established facts, and "
+              "say clearly where experts still disagree. Never invent quotes, studies or numbers; say 'some "
+              "researchers' unless the notes name them. Last line: ask which side they're on in the comments, "
+              "then the sign-off. Title is the debate question, e.g. 'Does ChatGPT actually think?'",
     "news": "Format: fresh news, explained. Start from what just happened (from the research notes, stating "
             "only what the notes support), then explain the underlying concept a beginner needs to understand "
             "it. Title like '<news thing>, explained in 60 seconds'.",
@@ -52,11 +65,12 @@ SHORT_FORMATS = {
 
 SCRIPT_SHAPE = """Reply with JSON only:
 {"title":"<=70 chars. Short: '<Topic> in 60 seconds'. Long: '<Topic> explained in 5 minutes' or 'What is <Topic>? (explained simply)'. Plain search words first.",
- "description":"3-5 sentences: what the viewer learns, plain and helpful, no hashtags, no timestamps",
+ "description":"3-5 sentences. The first sentence repeats the main search words naturally (it shows in search results). Then what the viewer learns, plain and helpful, no hashtags, no timestamps",
  "tags":["10-15 search tags people really type, most specific first"],
  "hashtags":["3-5 hashtags without #"],
  "thumb_text":"2-5 BIG words for the thumbnail, one *highlighted*, <=30 chars, e.g. 'RAG in *5 minutes*'",
  "thumb_icon":"one icon name",
+ "pinned_comment":"one short question viewers will want to answer (their opinion or guess), pinned as the first comment",
  "scenes":[{"say":"what Thoma says, 1-2 natural spoken sentences, <=40 words","mood":"talk","visual":{...}}]}
 mood is one of: talk, point, think, wow, laugh, wave (wave only in the first or last scene).
 Use think before a question, wow on a surprising fact, laugh right after a joke.
@@ -81,15 +95,21 @@ Write neutral notes in your own words, never copy sentences. Reply as JSON:
 
 REVIEW_SYSTEM = """You are a strict editor for a beginner tech channel. Check the script for:
 1. accuracy: anything false, misleading or outdated about the technology;
-2. clarity: any term used before it is explained, jargon a curious 15-year-old wouldn't know (in speech
-   or on-screen text), or a jump a beginner cannot follow;
+2. the student test: imagine a 10th-standard student who has never coded hears this once. Write what
+   they would tell a friend the video said (student_summary). List every line they would not understand
+   or would need to hear twice, every term used before it is explained, and every abstract sentence that
+   needs a concrete example. If there is no single everyday example running through the video, say so;
 3. tone: anything condescending, hype-y, or salesy;
 4. visuals: a visual that does not match what is said in that scene.
 Only list real problems, each pointing at the scene number. Reply as JSON:
-{"ok": true|false, "problems": ["scene 3: ...", ...]}"""
+{"student_summary": "...", "ok": true|false, "problems": ["scene 3: ...", ...]}"""
 
+# "Does AI think?", "Will AI replace...", "Is ChatGPT...": questions people argue about.
+DEBATE = re.compile(r"^\W*(do|does|did|is|are|can|could|will|would|should)\b(?!.*\bwhat is\b)", re.I)
 GREETINGS = re.compile(r"^\W*(hi|hello|hey|welcome|namaste|what's up)\b", re.I)
-TYPES = {"title", "bigtext", "stat", "diagram", "steps", "compare", "analogy", "code", "keep", "takeaway"}
+TYPES = {"title", "bigtext", "stat", "diagram", "steps", "compare", "analogy", "code", "keep", "takeaway",
+         "tokens", "predict", "vectors", "network", "chat"}
+CONCEPT = {"tokens", "predict", "vectors", "network", "chat"}
 
 
 def words(script) -> int:
@@ -105,7 +125,7 @@ def _tags_len(tags):
     return len(",".join(f'"{t}"' if " " in t else t for t in tags))
 
 
-def gates(script: dict, kind: str, idea) -> list[str]:
+def gates(script: dict, kind: str, idea, check_repeats: bool = True) -> list[str]:
     """Checks in plain code. Every returned string is a blocker sent back to the writer."""
     p, f = [], FORMATS[kind]
     scenes = script.get("scenes") or []
@@ -128,8 +148,10 @@ def gates(script: dict, kind: str, idea) -> list[str]:
         p.append("need 8-15 tags, under 450 characters in total")
     if kind == "long" and not 3 <= len(script.get("thumb_text", "")) <= 34:
         p.append("thumb_text must be 2-5 words, <=30 chars")
-    if kind == "long" and sum(1 for s in scenes if s.get("chapter")) < 3:
-        p.append("mark at least 3 section starts with \"chapter\"")
+    if kind == "long" and sum(1 for s in scenes if s.get("chapter")) < 5:
+        p.append("mark at least 5 section starts with \"chapter\"")
+    if not 20 <= len(script.get("pinned_comment", "")) <= 200:
+        p.append("pinned_comment must be one question for viewers, 20-200 chars")
     if GREETINGS.match(scenes[0]["say"]):
         p.append("scene 1 opens with a greeting; open on the hook instead")
     if (scenes[0].get("visual") or {}).get("type") == "keep":
@@ -153,6 +175,17 @@ def gates(script: dict, kind: str, idea) -> list[str]:
             p.append(f"scene {i}: steps needs 2-5 items")
         elif t == "code" and not v.get("lines"):
             p.append(f"scene {i}: code needs lines")
+        elif t == "tokens" and not 2 <= len(str(v.get("text", "")).split()) <= 10:
+            p.append(f"scene {i}: tokens needs a sentence of 2-10 words in text")
+        elif t == "predict" and not (v.get("prompt") and 2 <= len(v.get("options") or []) <= 5):
+            p.append(f"scene {i}: predict needs a prompt and 2-5 options")
+        elif t == "vectors" and not 1 <= len(v.get("groups") or []) <= 4:
+            p.append(f"scene {i}: vectors needs 1-4 groups")
+        elif t == "chat" and not 1 <= len(v.get("messages") or []) <= 4:
+            p.append(f"scene {i}: chat needs 1-4 messages")
+        for m in v.get("messages") or []:
+            if isinstance(m, dict) and len(str(m.get("text", ""))) > 90:
+                p.append(f"scene {i}: chat message over 90 chars")
         for key, lim in (("text", 90), ("heading", 44), ("sub", 64), ("label", 54)):
             if len(str(v.get(key, ""))) > lim:
                 p.append(f"scene {i}: visual {key} is over {lim} chars")
@@ -164,12 +197,12 @@ def gates(script: dict, kind: str, idea) -> list[str]:
         if (s.get("visual") or {}).get("type") != "keep":
             run, start = 0, i
         run += len(s.get("say", "").split())
-        if run > f["max_per_visual"]:
+        if run > f["max_per_visual"] + 8:
             p.append(f"scenes {start}-{i}: one visual covers {run} spoken words; change the visual at least "
                      f"every {f['max_per_visual']} words (about 10 seconds) so the screen keeps moving")
             break
-    rich = sum(1 for k in kinds if k in ("diagram", "steps", "compare", "analogy", "code", "stat"))
-    if rich < (2 if kind == "short" else 6):
+    rich = sum(1 for k in kinds if k in CONCEPT | {"diagram", "steps", "compare", "analogy", "code", "stat"})
+    if rich < (2 if kind == "short" else 14):
         p.append("too few real visuals: use more diagrams, steps, compares, analogies")
     # Never reuse the source channel's wording.
     if idea is not None:
@@ -178,6 +211,8 @@ def gates(script: dict, kind: str, idea) -> list[str]:
         copied = _ngrams(narration) & _ngrams(source)
         if copied:
             p.append(f"narration copies source wording: {sorted(copied)[:2]}; rephrase in Thoma's own words")
+    if not check_repeats:  # a revision of this same video naturally matches itself
+        return p
     # Don't repeat ourselves.
     with db.conn() as c:
         past = c.execute("SELECT title, script FROM videos WHERE kind=? AND script IS NOT NULL"
@@ -193,6 +228,24 @@ def gates(script: dict, kind: str, idea) -> list[str]:
             p.append("hook starts the same way as a recent video; vary the opening")
             break
     return p
+
+
+def repair(script: dict) -> dict:
+    """Fix mechanical slips in code instead of spending a whole LLM rewrite on them."""
+    for s in script.get("scenes") or []:
+        v = s.get("visual") or {}
+        t = v.get("type")
+        if t in ("row", "stack", "grid", "hub", "cycle", "flow", "pipeline"):  # a layout name used as a type
+            v["type"], v["layout"] = "diagram", t if t in ("row", "stack", "grid", "hub", "cycle") else "row"
+        elif t not in TYPES:
+            v.clear()
+            v.update({"type": "bigtext", "text": " ".join(s.get("say", "").split()[:8])})
+        if v.get("type") == "diagram":
+            for n in v.get("nodes") or []:
+                if isinstance(n, dict) and len(n.get("label", "")) > 22:
+                    n["label"] = n["label"][:21].rsplit(" ", 1)[0]
+        s["visual"] = v
+    return script
 
 
 def recent_hooks(kind: str) -> list[str]:
@@ -228,8 +281,11 @@ def research(idea) -> str:
         material = f"Tool: {idea['source_title']}\nTagline: {(idea['source_text'] or '').splitlines()[0]}\n\n{page}"
         system = TOOL_RESEARCH_SYSTEM
     else:
-        transcript = idea["transcript"] or ideas.transcript(idea)
-        material = f"Title: {idea['source_title'] or idea['topic']}\n{idea['source_text'] or ''}\n\n{transcript or ''}"
+        transcript = idea["transcript"] or ("" if idea["source"] == "owner" else ideas.transcript(idea))
+        # links in the owner's idea ("/short this new tool https://...") are read as source material
+        pages = "\n\n".join(_website_text(u) for u in re.findall(r"https?://\S+", idea["topic"])[:3])
+        material = (f"Title: {idea['source_title'] or idea['topic']}\n{idea['source_text'] or ''}\n\n{transcript or ''}"
+                    f"\n\n{pages}")
         system = RESEARCH_SYSTEM
     out = llm.ask_json(system, material[:24000] + f"\n\nTopic for our video: {idea['topic']}", "research")
     notes = "\n".join(f"- {n}" for n in out.get("notes", []))
@@ -248,6 +304,8 @@ def pick_short_format(idea) -> str:
     from .config import cfg
     if ideas.is_tool(idea):
         return "tool"
+    if DEBATE.match(idea["topic"]):
+        return "debate"
     weights = dict(cfg().get("short_formats", {"explainer": 1}))
     if idea["source"] in ("evergreen", "owner") or (idea["priority"] or 0) < 3:
         weights.pop("news", None)
@@ -256,6 +314,34 @@ def pick_short_format(idea) -> str:
     if last and len(weights) > 1:
         weights.pop(json.loads(last["script"]).get("format"), None)
     return random.choices(list(weights), weights=list(weights.values()))[0]
+
+
+REVISE_RULES = """# Editing a finished video
+The owner watched this video and asked for a change. Apply exactly what they ask, plus anything that
+must change to stay consistent (a visual that shows the changed line, the title if it is now wrong).
+Keep every other scene's "say" and "visual" EXACTLY as it is, word for word, so the rest of the
+recorded voice can be reused. Times like 0:23 refer to the scene times listed. If the owner says
+something is factually wrong, fix it so it is correct; never invent facts. Return the full script."""
+
+
+def revise(script: dict, kind: str, feedback: str, idea=None, times: list | None = None) -> dict:
+    """The owner's '/fix 12 <what to change>': change only those scenes, keep the rest identical."""
+    fmt = script.get("format")
+    spec = FORMATS[kind]["spec"] + ("\n" + SHORT_FORMATS[fmt] if kind == "short" and fmt in SHORT_FORMATS else "")
+    system = f"{CHARACTER}\n\n# Format\n{spec}\n\n{visuals.SPEC}\n\n{SCRIPT_SHAPE}\n\n{REVISE_RULES}"
+    listing = "\n".join(f"scene {i} ({int(a // 60)}:{int(a % 60):02}-{int(b // 60)}:{int(b % 60):02}): {s['say']}"
+                         for i, (s, (a, b)) in enumerate(zip(script["scenes"], times or []), 1))
+    prompt = (f"Owner's request: {feedback}\n\nWhen each scene is spoken:\n{listing}\n\n"
+              f"Current script:\n{json.dumps(script, ensure_ascii=False)}")
+    for attempt in range(3):
+        new = llm.ask_json(system, prompt, f"revise-{kind}")
+        problems = gates(new, kind, idea, check_repeats=False)
+        if not problems:
+            new["format"] = fmt
+            return new
+        log.info("revision %d failed gates: %s", attempt + 1, problems)
+        prompt += "\n\nYour last version had these problems, fix them too:\n" + "\n".join(f"- {x}" for x in problems)
+    raise ValueError("revision failed checks: " + "; ".join(problems))
 
 
 def write(idea, kind: str) -> dict:
@@ -288,14 +374,17 @@ def write(idea, kind: str) -> dict:
         brief += "\nRecent hooks (do NOT open the same way):\n" + "\n".join(f"- {h}" for h in hooks) + "\n"
 
     script, problems, reviewed = None, [], False
-    for attempt in range(5):
+    deadline = 5  # drafts allowed; a review's fixes always get 2 more
+    for attempt in range(8):
+        if attempt >= deadline:
+            break
         prompt = brief
         if script is not None:
             prompt += (f"\nYour previous draft:\n{json.dumps(script, ensure_ascii=False)}\n\n"
                        "Fix ALL of these problems and return the full corrected script:\n"
                        + "\n".join(f"- {x}" for x in problems)
                        + f"\nKeep the total spoken words between {lo} and {hi} (count them).")
-        script = llm.ask_json(system, prompt, f"write-{kind}")
+        script = repair(llm.ask_json(system, prompt, f"write-{kind}"))
         problems = gates(script, kind, idea)
         if problems:
             log.info("draft %d failed gates: %s", attempt + 1, problems)
@@ -305,8 +394,9 @@ def write(idea, kind: str) -> dict:
             return script
         review = llm.ask_json(REVIEW_SYSTEM, json.dumps(script, ensure_ascii=False), "review")
         reviewed = True
+        deadline = max(deadline, attempt + 3)
         problems = review.get("problems", []) if not review.get("ok", True) else []
         if not problems:
             return script
-        log.info("review asked for fixes: %s", problems)
-    raise ValueError("script failed checks after 5 drafts: " + "; ".join(problems))
+        log.info("review asked for fixes: %s (student heard: %s)", problems, review.get("student_summary", ""))
+    raise ValueError("script failed checks: " + "; ".join(problems))

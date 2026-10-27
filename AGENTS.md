@@ -37,8 +37,8 @@ thoma/voice.py           TTS, word timings, SFX
 thoma/render.py          prepare() / preview() / render() / thumbnail()
 thoma/pipeline.py        make(), slots(), schedule(), publish_due(), tick(): the scheduler
 thoma/publish/           youtube.py (OAuth, resumable upload, thumbnail, captions), meta.py (FB + IG)
-thoma/notify.py          Telegram messages, preview videos, /approve /reject /pause /resume /status
-assets/web/              stage.html/css/js (scene builders), mascot.js (Thoma: moods talk/point/think/wow/laugh/wave),
+thoma/notify.py          Telegram messages, preview videos, /approve /reject /fix /publish /short /long /topic /pause /resume /status
+assets/web/              stage.html/css/js (scene builders incl. AI concept visuals: tokens, predict, vectors, network, chat), mascot.js (Thoma: moods talk/point/think/wow/laugh/wave),
                          thumb.html, vendor (GSAP, highlight.js, Lucide icons)
 assets/music/            background tracks (downloaded by deploy/setup.sh)
 assets/samples/          hand-written scripts for testing the renderer without an LLM
