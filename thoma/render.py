@@ -147,8 +147,8 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     scenes = script["scenes"]
 
     track, spans, words = voice.narrate(scenes, out_dir / "takes")
-    limit = 58.5 if kind == "short" else 12 * 60
-    if len(track) / voice.SR > limit:  # a Short must stay under a minute: speak a little faster
+    limit = 178 if kind == "short" else 12 * 60
+    if len(track) / voice.SR > limit:  # Shorts can be up to 3 minutes: speak a little faster to fit
         factor = len(track) / voice.SR / (limit - 0.5)
         if factor > 1.2:
             raise ValueError(f"narration is {len(track) / voice.SR:.0f}s, too long for a {kind}")
@@ -161,7 +161,7 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     blocks = _blocks(scenes, spans, words, duration)
     events = [(b["start"] - 0.12, "whoosh", 0.35) for b in blocks[1:]]
     events += [(t, "pop", 0.18) for b in blocks for t in b["reveals"][:6]]
-    sf.write(out_dir / "voice.wav", track, voice.SR)
+    sf.write(out_dir / "voice.wav", voice.level(track), voice.SR)
     sf.write(out_dir / "sfx.wav", voice.mix_sfx(np.zeros_like(track), events), voice.SR)
     _srt(words, out_dir / "captions.srt")
     script["chapters"] = chapters(script, spans) if kind == "long" else []
@@ -171,6 +171,7 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     data = {
         "kind": kind, "W": W, "H": H, "fps": fps, "duration": duration, "n_frames": n_frames,
         "theme": script.get("theme") or THEMES[sum(map(ord, out_dir.name)) % len(THEMES)],
+        "cover": {"text": script.get("thumb_text") or script["title"]} if kind == "short" else None,
         "title": script["title"],
         "layout": {k: L[k] for k in ("stage", "thoma", "captions_y", "caption_size", "brand")},
         "blocks": blocks, "captions": _captions(words) if L["captions_y"] else [],
@@ -217,18 +218,23 @@ def render(script: dict, kind: str, out_dir: Path) -> Path:
            "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", str(fps), "-i", "-",
            "-i", str(out_dir / "voice.wav"), "-i", str(out_dir / "sfx.wav")]
     voice_in = f"[1:a]aresample=48000,{voice.VOICE_CHAIN},apad"
+    # Steady loudness from start to end: the voice is levelled once in prepare(), a limiter catches peaks.
+    # (loudnorm's on-the-fly levelling pumped the quiet ending up; music now fades out under the last line.)
+    speech_end = max(duration - TAIL, 1.0)
+    master = "alimiter=limit=0.89:level=false"
     if tracks:
         track_name = random.Random(script["title"]).choice(tracks)
         script["music"] = track_name.rsplit(".", 1)[0]
         cmd += ["-stream_loop", "-1", "-i", str(ASSETS / "music" / track_name)]
         # music sits low and ducks further whenever Thoma speaks
         af = (f"{voice_in},asplit=2[v][key];[2:a]aresample=48000,apad[s];"
-              f"[3:a]aresample=48000,volume={mc.get('volume', 0.22)}[m];"
+              f"[3:a]aresample=48000,volume={mc.get('volume', 0.22)},afade=t=in:d=0.6,"
+              f"afade=t=out:st={speech_end - 0.8:.2f}:d={TAIL + 0.8:.2f}[m];"
               "[m][key]sidechaincompress=threshold=0.015:ratio=8:attack=20:release=450[md];"
-              "[v][s][md]amix=inputs=3:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=9[a]")
+              f"[v][s][md]amix=inputs=3:duration=first:normalize=0,{master}[a]")
     else:
         af = (f"{voice_in}[v];[2:a]aresample=48000,apad[s];"
-              "[v][s]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-14:TP=-1.5:LRA=9[a]")
+              f"[v][s]amix=inputs=2:duration=first:normalize=0,{master}[a]")
     cmd += ["-filter_complex", af, "-map", "0:v", "-map", "[a]", "-shortest",
             "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-tune", "animation",
             "-pix_fmt", "yuv420p", "-r", str(fps),
@@ -253,6 +259,9 @@ def render(script: dict, kind: str, out_dir: Path) -> Path:
             raise RuntimeError("ffmpeg failed")
         if kind == "long":
             thumbnail(page, script, out_dir / "thumbnail.jpg")
+        else:  # the cover frame doubles as the Reel cover image
+            page.evaluate("t => seek(t)", 0.0)
+            page.screenshot(path=str(out_dir / "cover.jpg"), type="jpeg", quality=92)
     finally:
         if proc.poll() is None:
             proc.kill()

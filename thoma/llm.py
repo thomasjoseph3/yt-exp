@@ -24,6 +24,19 @@ class AllProvidersFailed(RuntimeError):
     pass
 
 
+last_provider = None  # name of the provider that answered the last ask_json() (recorded on scripts)
+
+
+def _chain(task: str) -> list[dict]:
+    """Providers for this job, in order. config llm.roles maps a job (write, review, research, triage)
+    to provider names, e.g. Qoder writes and Claude checks; without roles every job uses llm.providers."""
+    conf = cfg()["llm"]
+    role = {"revise": "write"}.get(task.split("-")[0], task.split("-")[0])
+    names = (conf.get("roles") or {}).get(role)
+    by_name = {p["name"]: p for p in conf["providers"]}
+    return [by_name[n] for n in names if n in by_name] if names else conf["providers"]
+
+
 def _claude_cli(p: dict, system: str, prompt: str) -> str:
     cmd = ["claude", "-p", "--output-format", "json", "--model", p.get("model", "sonnet"),
            "--system-prompt", system, "--tools", "", "--no-session-persistence",
@@ -89,8 +102,9 @@ def ask_json(system: str, prompt: str, task: str = "") -> dict:
     conf = cfg()["llm"]
     cooldown = conf.get("cooldown_minutes", 60) * 60
     benched = db.get_kv("llm_benched", {})
+    global last_provider
     errors = []
-    for p in conf["providers"]:
+    for p in _chain(task):
         if time.time() < benched.get(p["name"], 0):
             continue
         for attempt in range(2):
@@ -99,6 +113,7 @@ def ask_json(system: str, prompt: str, task: str = "") -> dict:
                 text = CALLERS[p["type"]](p, system, prompt)
                 result = parse_json(text)
                 log.info("llm %s ok (%s, %.0fs)", p["name"], task, time.time() - t0)
+                last_provider = p["name"]
                 return result
             except json.JSONDecodeError:
                 errors.append(f"{p['name']}: reply was not JSON")

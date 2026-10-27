@@ -18,14 +18,18 @@ log = logging.getLogger("thoma.ideas")
 NS = {"a": "http://www.w3.org/2005/Atom", "media": "http://search.yahoo.com/mrss/",
       "yt": "http://www.youtube.com/xml/schemas/2015"}
 
-TRIAGE_SYSTEM = """You plan topics for "Thoma Explains", a channel that teaches AI, software,
-cloud, security and how tech works to complete beginners. You get titles and
-descriptions of videos from other tech channels. For each, decide if its subject
-can become an original beginner explainer of ONE clear concept (e.g. a release
-about a new database -> "What is a vector database?"; a security incident ->
-"What is a supply-chain attack?"). fit=false for podcasts, round-ups that cover
-many things, interviews, opinion pieces, product ads, and memes. Reply as JSON:
-{"items":[{"ref":"<ref>","fit":true,"topic":"short plain topic, e.g. What is RAG?",
+TRIAGE_SYSTEM = """You plan topics for "Thoma Explains", an EDUCATION channel about AI for complete
+beginners: how AI works, new AI models and updates, new AI technology, AI security issues (prompt
+injection, deepfakes, voice-clone scams, data leaks, jailbreaks) and AI news, always explained so a
+10th-standard student understands what happened and the concept behind it. You get titles and
+descriptions of videos from other tech channels. For each, decide if its subject can become an
+original beginner explainer of ONE clear concept (e.g. a release about a new database -> "What is a
+vector database?"; a security incident -> "How do AI voice scams work?"). fit=false for podcasts,
+round-ups that cover many things, interviews, opinion pieces, product ads, and memes.
+ai=true if the topic is about AI (or a security issue involving AI); other tech is allowed but less
+wanted. news=true if it is about something that just happened and gets stale within a week.
+Reply as JSON:
+{"items":[{"ref":"<ref>","fit":true,"ai":true,"news":false,"topic":"short plain topic, e.g. What is RAG?",
 "angle":"one everyday analogy Thoma could use"}]}"""
 
 
@@ -127,6 +131,15 @@ def _backfill(channel_id: str, pages: int) -> list[dict]:
     return items
 
 
+def _priority(verdict: dict, base: int) -> int:
+    """AI topics first (the channel's focus), and fresh AI news before it goes stale; other tech last."""
+    if "ai" not in verdict:  # e.g. the AI-tools triage, which doesn't classify
+        return base
+    if not verdict["ai"]:
+        return max(base - 2, 0)
+    return base + (2 if verdict.get("news") else 0)
+
+
 def _store(source: str, items: list[dict], priority: int, system: str = TRIAGE_SYSTEM) -> int:
     with db.conn() as c:
         known = {r[0] for r in c.execute("SELECT source_ref FROM ideas")}
@@ -148,7 +161,7 @@ def _store(source: str, items: list[dict], priority: int, system: str = TRIAGE_S
                     "INSERT OR IGNORE INTO ideas (source, source_ref, source_title, source_text, topic, angle,"
                     " status, priority, created) VALUES (?,?,?,?,?,?,?,?,?)",
                     (source, i["ref"], i["title"], i["text"], v.get("topic", ""), v.get("angle", ""),
-                     "new" if v.get("fit") else "rejected", priority, db.now()))
+                     "new" if v.get("fit") else "rejected", _priority(v, priority), db.now()))
                 added += bool(v.get("fit"))
     return added
 
@@ -167,6 +180,47 @@ def transcript(idea) -> str:
     with db.conn() as c:
         c.execute("UPDATE ideas SET transcript=? WHERE id=?", (text, idea["id"]))
     return text
+
+
+def top_explainers(topic: str, n: int = 3) -> list[dict]:
+    """The most-watched YouTube videos on a topic, with transcripts: how proven explainers teach it.
+    Used to learn structure and what kind of example makes it click; never to copy (writer.gates)."""
+    import json
+    query = re.sub(r"https?://\S+", "", topic).strip() + " explained"
+    try:
+        page = httpx.get("https://www.youtube.com/results", params={"search_query": query}, timeout=30,
+                         headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)", "Accept-Language": "en"}).text
+        data = json.loads(re.search(r"var ytInitialData = (\{.*?\});</script>", page).group(1))
+    except Exception as e:
+        log.info("search for top explainers failed: %s", e)
+        return []
+    found = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            v = o.get("videoRenderer")
+            if v:
+                views = re.sub(r"\D", "", (v.get("viewCountText") or {}).get("simpleText") or "") or "0"
+                found.append({"ref": v["videoId"], "title": v["title"]["runs"][0]["text"], "views": int(views)})
+            for x in o.values():
+                walk(x)
+        elif isinstance(o, list):
+            for x in o:
+                walk(x)
+    walk(data)
+    out = []
+    from youtube_transcript_api import YouTubeTranscriptApi
+    for v in sorted(found[:12], key=lambda v: -v["views"]):
+        try:
+            fetched = YouTubeTranscriptApi().fetch(v["ref"], languages=["en", "en-US", "en-GB"])
+        except Exception:
+            continue
+        v["transcript"] = " ".join(s.text for s in fetched)
+        out.append(v)
+        if len(out) == n:
+            break
+    log.info("top explainers for %r: %s", topic[:60], [f"{v['title']} ({v['views']:,} views)" for v in out])
+    return out
 
 
 def refresh(backfill_pages: int = 0) -> int:

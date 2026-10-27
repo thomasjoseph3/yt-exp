@@ -25,6 +25,12 @@ log = logging.getLogger("thoma.pipeline")
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
+def video_file(v) -> Path:
+    """Where the video is on THIS machine (the database may have come from another one via backup.sh)."""
+    p = Path(v["path"])
+    return p if p.exists() else OUT / p.parent.name / p.name
+
+
 def local_now() -> datetime:
     return datetime.now(ZoneInfo(cfg()["channel"]["timezone"])).replace(tzinfo=None)
 
@@ -71,6 +77,14 @@ def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> i
     return vid
 
 
+def remember_feedback(v, verdict: str, note: str = "") -> None:
+    """Owner's verdicts and notes, fed into every future script brief (writer.owner_feedback)."""
+    items = db.get_kv("owner_feedback", [])
+    items.append({"video": v["id"], "kind": v["kind"], "title": v["title"], "verdict": verdict, "note": note,
+                  "at": db.now()})
+    db.set_kv("owner_feedback", items[-40:])
+
+
 def fix(vid: int, feedback: str) -> None:
     """Owner's correction: rewrite only the scenes they mean, re-voice only what changed, re-render."""
     from . import render
@@ -81,6 +95,7 @@ def fix(vid: int, feedback: str) -> None:
     times = json.loads(tlj.read_text()).get("scenes") if tlj.exists() else None
     with db.conn() as c:
         idea = c.execute("SELECT * FROM ideas WHERE id=?", (v["idea_id"],)).fetchone() if v["idea_id"] else None
+    remember_feedback(v, "fix", feedback)
     new = writer.revise(script, kind, feedback, idea, times)
     changed = [i for i, (a, b) in enumerate(zip(script["scenes"], new["scenes"]), 1) if a != b]
     changed += list(range(len(script["scenes"]) + 1, len(new["scenes"]) + 1))
@@ -104,6 +119,10 @@ def upload_pack(script: dict, kind: str, out_dir, reply_to=None):
     thumb = out_dir / "thumbnail.jpg"
     if kind == "long" and thumb.exists():
         notify.send_photo(thumb, "Thumbnail (1280x720)", reply_to=reply_to)
+    cover = out_dir / "cover.jpg"
+    if kind == "short" and cover.exists():
+        notify.send_photo(cover, "Cover image for Instagram/Facebook Reels (it is also the Short's first frame)",
+                          reply_to=reply_to)
 
 
 def slots(kind: str, after: datetime, hours: float) -> list[datetime]:
@@ -137,7 +156,7 @@ def schedule(video_id: int, at: datetime | None = None) -> bool:
     Facebook. Platforms already done are skipped, so calling it again retries only failures."""
     from .publish import meta, platforms_for, telegram, youtube
     v = db.video(video_id)
-    script, path = json.loads(v["script"]), Path(v["path"])
+    script, path = json.loads(v["script"]), video_file(v)
     now = local_now()
     if at is None and v["publish_at"]:
         at = datetime.fromisoformat(v["publish_at"])
@@ -197,7 +216,7 @@ def publish_due():
         for platform in platforms_for(v["kind"]):
             if platform in ("instagram", "facebook") and done.get(platform) != "ok":
                 try:
-                    res = meta.upload(platform, Path(v["path"]), json.loads(v["script"]), v["kind"])
+                    res = meta.upload(platform, video_file(v), json.loads(v["script"]), v["kind"])
                     row = (v["id"], platform, "ok", res["remote_id"], res["url"], None, db.now())
                 except Exception as e:
                     log.exception("upload to %s failed", platform)
@@ -236,12 +255,17 @@ def _handle_owner_replies():
         v = db.video(vid) if vid else None
         if cmd == "approve" and v and v["status"] == "ready":
             db.update_video(vid, status="approved")
+            remember_feedback(v, "approved", arg.split(maxsplit=1)[1] if len(arg.split()) > 1 else "")
+            writer.save_example(json.loads(v["script"]), v["kind"], vid)
             notify.send(f"#{vid} approved; it goes into the next free slot.")
         elif cmd == "reject" and v and v["status"] in ("ready", "approved", "scheduled"):  # (a rejected video can still be /fix-ed)
             if v["status"] == "scheduled":
                 _cancel_youtube(vid)
-            db.update_video(vid, status="rejected", error=arg, publish_at=None)
-            notify.send(f"#{vid} rejected.")
+            reason = arg.split(maxsplit=1)[1] if len(arg.split()) > 1 else ""
+            db.update_video(vid, status="rejected", error=reason or "rejected by owner", publish_at=None)
+            remember_feedback(v, "rejected", reason)
+            notify.send(f"#{vid} rejected." + ("" if reason else f" Tip: add why (/reject {vid} too technical) "
+                                                "and every future script learns from it."))
         elif cmd == "topic" and arg:
             notify.send(f"Got it: '{arg}' is next in line (idea #{ideas.add_topic(arg)}).")
         elif cmd in ("short", "reel", "long") and arg:  # owner's own idea: research and make it right away
@@ -262,6 +286,8 @@ def _handle_owner_replies():
             schedule(vid, at=local_now())
         elif cmd == "status":
             notify.send(status_text())
+        elif cmd in ("plan", "week", "schedule"):
+            notify.send(plan_text())
         elif cmd in ("pause", "resume"):
             db.set_kv("paused", cmd == "pause")
             notify.send(f"Studio {cmd}d.")
@@ -291,7 +317,7 @@ def cleanup():
     with db.conn() as c:
         rows = c.execute("SELECT id, kind, status, path, created FROM videos WHERE path IS NOT NULL").fetchall()
     for r in rows:
-        folder = Path(r["path"]).parent
+        folder = video_file(r).parent
         if not folder.exists():
             continue
         age = (now - datetime.fromisoformat(r["created"])).days
@@ -354,6 +380,34 @@ def tick():
     except Exception as e:
         log.exception("tick failed")
         notify.send(f"Studio error: {str(e)[:300]}")
+
+
+def plan_text(days: int = 7) -> str:
+    """The coming week, slot by slot: which video goes out then, and what is still missing."""
+    now = local_now()
+    with db.conn() as c:
+        booked = {(r["kind"], r["publish_at"]): r for r in c.execute(
+            "SELECT id, kind, title, publish_at FROM videos WHERE status IN ('scheduled','published')"
+            " AND publish_at > ?", (now.isoformat(),))}
+        # approved videos take the earliest free slots first, then the ones still waiting for you
+        queue = {k: list(c.execute("SELECT id, status, title FROM videos WHERE kind=? AND status IN "
+                                   "('approved','ready','writing','rendering') ORDER BY status != 'approved', id", (k,)))
+                 for k in ("long", "short")}
+    state = {"approved": "approved", "ready": "needs your /approve", "writing": "being made", "rendering": "being made"}
+    lines, gaps = [f"Plan for the next {days} days:"], 0
+    for t, kind in sorted((t, k) for k in ("long", "short") for t in slots(k, now, days * 24)):
+        r = booked.get((kind, t.isoformat()))
+        if r:
+            what = f"#{r['id']} {r['title'][:45]} (scheduled)"
+        elif queue[kind]:
+            q = queue[kind].pop(0)
+            what = f"#{q['id']} {q['title'][:45] or '...'} ({state[q['status']]})"
+        else:
+            what, gaps = "empty: made automatically before then", gaps + 1
+        lines.append(f"{_when(t)}  {kind:<5} {what}")
+    if gaps and db.get_kv("paused"):
+        lines.append("The studio is paused, so empty slots stay empty. Send /resume.")
+    return "\n".join(lines)
 
 
 def status_text() -> str:

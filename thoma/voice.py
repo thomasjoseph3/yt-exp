@@ -169,7 +169,14 @@ def speak(text: str, engine: str | None = None, voice: str | None = None, strict
 
 
 def caption_words(text: str) -> list[str]:
-    return TAG.sub("", text.replace("*", "")).split()
+    """Spoken words as shown in captions; a lone dash or symbol joins the word before it."""
+    out = []
+    for w in TAG.sub("", text.replace("*", "")).split():
+        if re.search(r"[A-Za-z0-9]", w) or not out:
+            out.append(w)
+        else:
+            out[-1] += " " + w if w in ("—", "–", "-") else w
+    return [w.replace(" —", "").replace(" –", "").replace(" -", "") for w in out]
 
 
 CHUNK_WORDS = 170  # whole scenes per TTS request; a Short is one continuous take
@@ -202,9 +209,10 @@ def align(track: np.ndarray, script_words: list[str]) -> list[tuple[float, float
     """Start/end time of every script word in the track, from local speech recognition.
     Words the recogniser hears differently (numbers, acronyms) are interpolated between neighbours."""
     audio16 = np.interp(np.arange(0, len(track), SR / 16000), np.arange(len(track)), track).astype(np.float32)
-    segments, _ = _aligner().transcribe(audio16, language="en", word_timestamps=True, beam_size=1,
-                                        initial_prompt=" ".join(script_words[:80]))
-    heard = [(_norm(w.word), w.start, w.end) for seg in segments for w in (seg.words or [])]
+    # No initial_prompt: given the script as a hint, Whisper skips whole stretches it thinks were "already
+    # said", and the captions in those stretches drift by seconds.
+    segments, _ = _aligner().transcribe(audio16, language="en", word_timestamps=True, beam_size=5)
+    heard = [(_norm(w.word), w.start, w.end) for seg in segments for w in (seg.words or []) if _norm(w.word)]
     times: list = [None] * len(script_words)
     sm = difflib.SequenceMatcher(None, [_norm(w) for w in script_words], [h[0] for h in heard], autojunk=False)
     for a, b, size in sm.get_matching_blocks():
@@ -212,6 +220,7 @@ def align(track: np.ndarray, script_words: list[str]) -> list[tuple[float, float
             times[a + k] = (heard[b + k][1], heard[b + k][2])
     total = len(track) / SR
     known = [i for i, t in enumerate(times) if t]
+    log.info("aligned %d of %d words by ear; the rest are placed between them", len(known), len(script_words))
     if not known:  # recogniser failed: spread evenly
         step = total / max(len(script_words), 1)
         return [(i * step, (i + 1) * step) for i in range(len(script_words))]
@@ -272,9 +281,9 @@ def narrate(scenes: list[dict], cache_dir=None):
     flat = [w for ws in per_scene for w in ws]
     wpm = len(flat) / (len(track) / SR / 60)
     target = cfg()["voice"].get("target_wpm", 165)
-    if wpm < target * 0.97:  # too slow sounds lifeless: speed up (pitch stays the same)
-        factor = min(target / wpm, 1.2)
-        log.info("voice pace %.0f wpm, speeding up x%.2f", wpm, factor)
+    if wpm < target * 0.93 or wpm > target * 1.07:  # too slow sounds lifeless, too fast loses people
+        factor = min(max(target / wpm, 0.85), 1.2)       # small changes only, pitch stays the same
+        log.info("voice pace %.0f wpm, adjusting speed x%.2f", wpm, factor)
         track = stretch(track, factor)
     times = align(track, flat)
     words, k = [], 0
@@ -334,6 +343,18 @@ def mix_sfx(track: np.ndarray, events: list[tuple[float, str, float]]) -> np.nda
 
 
 # Speech mastering: trim rumble, warm the body, lift clarity, even out the level.
+def level(track: np.ndarray, target_db: float = -15.0) -> np.ndarray:
+    """One fixed gain so speech sits at the same loudness in every video (about -14 LUFS after the
+    mastering chain's compressor and makeup gain). Measured on the speech only, not the silences."""
+    frames = track[: len(track) // 480 * 480].reshape(-1, 480)
+    rms = np.sqrt((frames ** 2).mean(axis=1))
+    speech = rms[rms > max(rms.max() * 0.05, 1e-4)]
+    if not len(speech):
+        return track
+    gain = 10 ** ((target_db - 20 * np.log10(np.sqrt((speech ** 2).mean()))) / 20)
+    return np.clip(track * gain, -1, 1).astype(np.float32)
+
+
 VOICE_CHAIN = ("highpass=f=75,lowpass=f=15000,equalizer=f=180:t=q:w=1:g=1.5,equalizer=f=350:t=q:w=1.5:g=-2,"
                "equalizer=f=3200:t=q:w=1.2:g=2.5,acompressor=threshold=-21dB:ratio=3:attack=5:release=90:makeup=2")
 

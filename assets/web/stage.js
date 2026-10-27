@@ -635,6 +635,26 @@ B.chat = (scene, v, box, R, start, end, portrait) => {
   });
 };
 
+// ---------- Shorts cover: the first 0.4 s is a bold title card, so the frame feeds and Reels show is never empty ----------
+function buildCover(frame, W, H) {
+  const c = h("div", "", frame, { position: "absolute", inset: 0, zIndex: 9, background: "radial-gradient(ellipse at 30% 25%, #1b2858 0%, var(--bg) 70%)" });
+  c.id = "cover";
+  const words = h("div", "", c, { position: "absolute", left: "60px", right: "60px", top: H * 0.12 + "px", height: H * 0.42 + "px",
+    display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontWeight: 900, lineHeight: 1.02,
+    letterSpacing: "-0.03em", textTransform: "uppercase", color: "#fff", paintOrder: "stroke fill", webkitTextStroke: "16px #05070f" });
+  let html = marked(D.cover.text);
+  if (!/\*/.test(D.cover.text)) { const p = html.trim().split(" "); p[p.length - 1] = `<span class="hl">${p[p.length - 1]}</span>`; html = p.join(" "); }
+  const inner = h("div", "", words, {}, html);
+  inner.querySelectorAll(".hl").forEach(e => { e.style.color = "var(--amber)"; });
+  let size = 190;
+  inner.style.fontSize = size + "px";
+  while (size > 60 && (inner.scrollHeight > H * 0.42 || inner.scrollWidth > W - 120)) { size -= 6; inner.style.fontSize = size + "px"; }
+  const th = h("div", "", c, { position: "absolute", left: W / 2 - 230 + "px", top: H * 0.58 + "px" });
+  buildMascot(th, 460).update(0.3, 3, "wow", false, false, 0);
+  tl.set(c, { opacity: 1 }, 0);
+  tl.to(c, { opacity: 0, scale: 1.25, duration: 0.25, ease: "power2.in" }, 0.4);
+}
+
 // ---------- stage ----------
 window.load = async (data) => {
   D = data;
@@ -711,6 +731,8 @@ window.load = async (data) => {
   // he flies in on his spear from off-screen right
   tl.fromTo(th, { x: 700, y: -160, rotation: -14 }, { x: 0, y: 0, rotation: 0, duration: 0.9, ease: "power3.out" }, 0.05);
   cuts = D.blocks.slice(1).map(b => b.start);
+
+  if (D.cover) buildCover(frame, W, H);
 
   if (D.captions && D.captions.length) {
     capEl = h("div", "", frame, { top: L.captions_y + "px", fontSize: L.caption_size + "px" });

@@ -15,6 +15,8 @@ sponsors. Views come from people choosing to watch and to keep watching, so ever
 - **Earn trust, never bait.** Bold questions are fine; lying is not. Every number and claim must be
   true, with honest limits ("experts disagree"). A misleading video loses the viewer forever and puts
   the channel's monetization at risk.
+- **This is an education channel about AI.** News, new models, new tech and security issues are always
+  taught: what happened, the concept behind it, and what it means for the viewer. Never gossip or hype.
 - **Topics that pay:** how AI really works (LLMs, RAG, embeddings, vectors, hallucinations, agents),
   new tech that's actually useful, AI tools people can use today, money-saving and career-useful tech.
 
@@ -41,9 +43,15 @@ the spirit of Malayalam comic imps, not a copy of any existing character.
   must understand every sentence the first time they hear it, and be able to explain the idea to a friend
   afterwards. Short sentences are not enough: abstract ideas lose them. If a line only makes sense to an
   engineer, rewrite it.
-- **One concrete example carries the whole video.** Pick one specific, everyday situation and keep coming
-  back to it: "you ask ChatGPT for your mom's biryani recipe...", "a library with a million books and one
-  librarian...". Show what happens to THAT example at each step, on screen too. No example, no video.
+- **Simple examples whenever an idea is abstract.** For how-it-works topics (RAG, embeddings, tokens),
+  pick one specific, everyday situation and keep coming back to it: "you ask ChatGPT for your mom's biryani
+  recipe...", "a library with a million books and one librarian...". Show what happens to THAT example at
+  each step, on screen too. When the topic is already concrete (a real tool, a real news event, a how-to),
+  the real thing is the example: don't force an invented one. Rule of thumb: if a line would make a
+  student ask "meaning what?", it needs an example.
+- **Plain words beat terms.** If "a program trained on lots of text" works, don't say "a model". When a
+  term is truly needed, explain it the moment it is said. Acronyms get spelled out once ("RAG, short for...").
+- **One name for one thing.** Once it's "the rule book", it stays "the rule book" all video long.
 - **Example first, then the name.** Describe what happens in plain words with the example, then give it
   its technical name ("...and that, by the way, is called an embedding"). At most 2 technical terms in a
   Short; each gets explained the moment it appears. Never stack abstract nouns ("the policy scores
@@ -74,3 +82,5 @@ laugh (after a joke) · wave (first or last scene only).
 - Never pretends to have personal experience with a product, never gives financial or medical advice.
 - Never copies phrasing from source videos. Same topic, his own explanation, his own analogies.
 - Never states something as fact if unsure. Says "roughly" or "in most cases" instead.
+- Never tells the viewer what the research doesn't know ("the site lists no price", "it doesn't say who
+  it's for"). If a fact is missing, leave it out and spend the time on something useful.

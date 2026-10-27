@@ -16,9 +16,9 @@ Owner decisions (don't reverse without asking):
 - Only Qoder or Claude write content. No Ollama/Gemini/Groq for scripts. User uses Qoder (qoder.com), not Qodo.
 - Thoma is a small original purple imp mascot (amber horns, tail, glasses, cyan stylus, rides a glowing spear) in the bottom-right corner, inspired by Balarama's Luttappi but not a copy. User rejected the earlier big teacher presenter and the chalkboard look.
 - Visual style: ByteMonk-like animated diagrams, Fireship pace.
-- Voice: Gemini TTS via AI Studio keys (GEMINI_API_KEY + GEMINI_API_KEY_2), one continuous take, faster-whisper word alignment, target 165 wpm. Fallbacks: Chirp HD (capped below free tier), local Kokoro. Free tier is ~10 requests/day per model per key, so it rotates models/keys.
+- Voice: Gemini TTS via AI Studio keys (GEMINI_API_KEY + GEMINI_API_KEY_2), one continuous take, faster-whisper word alignment, target 150 wpm (owner: 165 was too fast). Fallbacks: Chirp HD (capped below free tier), local Kokoro. Free tier is ~10 requests/day per model per key, so it rotates models/keys.
 - IG/FB are manual: Telegram sends the original-quality file + caption. Telegram bot @mallu_monksbot is connected (token + chat ID in .env).
-- Schedule (owner agreed 2026-10-27, to avoid looking mass-produced): 3 long a week Tue/Thu/Sat at 06:30 IST (add a 4th day once quality holds) + 2 Shorts daily (07:30, 19:30); laptop runs at night; Shorts ≤59 s; long videos kept 14 days; Shorts deleted after publishing.
+- Schedule (owner agreed 2026-10-27, to avoid looking mass-produced): 3 long a week Tue/Thu/Sat at 06:30 IST (add a 4th day once quality holds) + Shorts daily (now 1 a day, see evening update); laptop runs at night; Shorts up to 3 min (usually 60-90 s); long videos kept 14 days; Shorts deleted after publishing.
 - AI-tool videos lane (~35% Shorts, 25% long) with affiliate links from config `ai_tools.affiliates`.
 - Runs on Linux laptop (SSD nearly full, ~7 GB free) or Windows PC via Docker Desktop (Dockerfile + docker-compose.yml, image built and tested 2026-10-26).
 
@@ -51,5 +51,28 @@ Update 2026-10-27 (owner asked for ByteMonk-like richer animation, more natural 
   ember, matrix); Thoma and branding never change.
 - Source channels: feeds sometimes 404; ideas._rss falls back to reading the channel's videos + Shorts pages.
   Transcripts are fetched when an idea is used (writer.research), turned into neutral notes.
+- 2026-10-27: Shorts may run up to 3 min (usually 60-90 s, length follows the topic); research reads the
+  3 most-watched YouTube explainers on the topic (ideas.top_explainers) for teaching structure, and the copy
+  gate covers their transcripts. Word alignment no longer uses Whisper's initial_prompt (it skipped
+  whole stretches and captions drifted by seconds).
+- Quality loop (owner, 2026-10-27): Qoder writes, Claude checks (config llm.roles); reviews logged
+  (`thoma lessons`); approved scripts become examples (assets/examples); owner verdicts/fix notes feed every
+  brief. Claude Opus wrote the RAG-vs-OKF gold series (ideas 229-233 + 185). After the owner reviews it,
+  switch back to Qoder and use `thoma lessons` to tighten prompts/gates until Qoder matches it.
+
+Update 2026-10-27 evening:
+- Gold series done: Shorts #13-17 + long #18 (Opus, 9:58). Qoder tests: #19 tokens (good), #20 NotebookLM
+  (filler about what the site doesn't say; owner should reject), #21 NotebookLM remake (good). All ready on
+  Telegram, none approved yet. #12 has the old audio mix: reject.
+- Qoder now writes, Claude Sonnet reviews (llm.roles; review falls back to Qoder if Claude is out).
+- Schedule changed: 1 Short a day (19:30) + 3 long a week (Tue/Thu/Sat 06:30) = 10 videos/week;
+  plan_ahead_hours 168 so one night of the daemon makes the whole week. `/plan` (Telegram) or
+  `thoma plan` shows the calendar. Add "07:30" back for 2 Shorts/day once Qoder is reliably good.
+- Moving to the owner's personal system: deploy/backup.sh now also packs unpublished videos (out/);
+  setup.sh restores them; pipeline.video_file() finds a video by folder name when the DB came from another
+  machine. Run the studio on ONE machine only (shared Telegram bot).
+- Pending owner answers: Malayalam dub of long videos for @mallumonks (own voice recorded per scene, or AI
+  voice?) -> then build a `dub` step (per-scene Malayalam voice, re-timed render, Malayalam title/thumbnail,
+  second YouTube sign-in). Voice clone: NVIDIA GPU? + 1-2 min sample.
 
 User goal: 10k subscribers in 3 months and real second income; see [[thoma-owner-profile]]. Related: [[use-own-judgment]], [[natural-voice-required]], [[background-long-jobs]].

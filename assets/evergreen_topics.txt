@@ -57,3 +57,13 @@ Why does ChatGPT get maths wrong?
 How does semantic search find meaning, not keywords?
 Is your data being used to train AI?
 Why do AI models hallucinate, and can it be fixed?
+How do AI voice-clone scam calls work, and how do you stay safe?
+What is a deepfake, and how can you spot one?
+Can ChatGPT leak your private data?
+What is jailbreaking an AI?
+What is data poisoning in AI?
+What is an AI agent allowed to do on your computer?
+Why do AI models get worse at some things after an update?
+What is an open-weight AI model?
+How do AI image detectors work, and can they be fooled?
+What is an AI watermark?

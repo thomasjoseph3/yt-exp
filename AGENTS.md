@@ -37,7 +37,7 @@ thoma/voice.py           TTS, word timings, SFX
 thoma/render.py          prepare() / preview() / render() / thumbnail()
 thoma/pipeline.py        make(), slots(), schedule(), publish_due(), tick(): the scheduler
 thoma/publish/           youtube.py (OAuth, resumable upload, thumbnail, captions), meta.py (FB + IG)
-thoma/notify.py          Telegram messages, preview videos, /approve /reject /fix /publish /short /long /topic /pause /resume /status
+thoma/notify.py          Telegram messages, preview videos, /approve /reject /fix /publish /short /long /topic /pause /resume /status /plan
 assets/web/              stage.html/css/js (scene builders incl. AI concept visuals: tokens, predict, vectors, network, chat), mascot.js (Thoma: moods talk/point/think/wow/laugh/wave),
                          thumb.html, vendor (GSAP, highlight.js, Lucide icons)
 assets/music/            background tracks (downloaded by deploy/setup.sh)
@@ -50,6 +50,7 @@ out/<id>-<kind>/         per video: script.json, voice.wav, captions.srt, timeli
 | Command | What it does |
 |---|---|
 | `status` | queue, ideas left, which LLM providers are cooling down |
+| `plan` | the coming week, slot by slot: which video goes out when, and what is still missing |
 | `test-llm` | checks every provider in config.yaml |
 | `ideas [--backfill N]` | pull new topics (backfill needs YOUTUBE_API_KEY) |
 | `topic "What is Docker?"` | owner's topic request; used for the next video |
@@ -70,7 +71,24 @@ out/<id>-<kind>/         per video: script.json, voice.wav, captions.srt, timeli
 - **Only Qoder or Claude write content** (owner's rule). Every model call goes through `llm.ask_json()`; don't add other LLM providers (Gemini is used only for the voice).
 - Secrets stay in `.env` and `~/.config/thoma-studio/`. Never log or print them.
 - After editing anything visual, run `uv run thoma preview assets/samples/short_rag.json short` (and `long`) and look at the PNGs before saying it works.
-- Shorts must stay under 60 s (render.py speeds the voice up a little, then refuses).
+- Shorts run 60-120 s (up to 178 s if the topic truly needs it; render.py refuses longer).
+
+## Quality loop: Qoder writes, Claude checks (owner's decision, 2026-10-27)
+- `config.yaml` → `llm.roles`: Qoder researches and writes, Claude reviews every script (the "student test" plus
+  accuracy). Claude's notes go back to Qoder for the rewrite.
+- Every review is logged. `uv run thoma lessons` shows each writer's first-check pass rate and the recent catches.
+  The last few catches are also put into every new brief automatically.
+- Scripts the owner approves are saved to `assets/examples/<kind>/` and shown to the writer as the standard to match.
+  The RAG vs OKF series was written by Claude Opus (`make ... --llm claude-opus`) to set that bar.
+- Owner verdicts and `/fix` notes go into every brief (`writer.owner_feedback`).
+- Popular explainers are used for STRUCTURE only: `research()` turns the most-watched ones into a beat sheet
+  plus fresh examples of our own. Never their words or examples (owner asked to reword top transcripts; declined,
+  YouTube's reused-content rule blocks monetization).
+- Code gates for the catches that kept coming back: jargon and acronyms must be listed in `terms` and explained
+  where first said (`_term_problems`); diagram/vector labels must be spoken (`_label_problems`).
+- **When the same catch keeps coming back, fix it at the source**: tighten `thoma/character.md`, the format spec
+  in `writer.FORMATS`/`SHORT_FORMATS`, or add a code gate in `writer.gates`/`writer.repair`. Then check that
+  `thoma lessons` improves over the next videos.
 
 ## Adding a new visual type (the most common job)
 1. `assets/web/stage.js`: add `B.mytype = (scene, v, box, R, start, end, portrait) => { ... }`.

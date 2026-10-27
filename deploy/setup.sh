@@ -16,6 +16,7 @@ if [ -n "${1:-}" ]; then   # restore keys, YouTube sign-in and the video history
   STAGE="$(mktemp -d)"; tar -xzf "$1" -C "$STAGE"
   [ -f "$STAGE/env" ] && cp "$STAGE/env" .env
   [ -f "$STAGE/studio.db" ] && mkdir -p data && cp "$STAGE/studio.db" data/studio.db
+  [ -d "$STAGE/out" ] && mkdir -p out && cp -rn "$STAGE/out/." out/   # videos still waiting to go out
   [ -d "$STAGE/config" ] && mkdir -p ~/.config && cp -r "$STAGE/config" ~/.config/thoma-studio
   rm -rf "$STAGE"
   echo "Restored keys, YouTube sign-in and history from $1"

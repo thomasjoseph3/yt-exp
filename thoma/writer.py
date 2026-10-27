@@ -15,11 +15,14 @@ log = logging.getLogger("thoma.writer")
 CHARACTER = (Path(__file__).parent / "character.md").read_text()
 
 FORMATS = {
-    "short": {"words": (100, 175), "target": "130-155", "scenes": (7, 12), "max_per_visual": 28, "signoff": "thoma out", "spec": (
-        "A vertical Short/Reel of 45-59 seconds (100-155 spoken words), part of the series '<topic> in 60 "
-        "seconds'. Scene 1 is the hook in under 12 words: a surprising question or fact about what the viewer "
-        "will understand. No greeting, no self-introduction. One concept only: one analogy, one diagram, one "
-        "'here's the trick' moment. The last line lands the takeaway, ends with 'Thoma out!', and should flow "
+    # Shorts may run up to 3 minutes; most topics need 60-90 s. Length follows what the topic needs.
+    "short": {"words": (110, 300), "target": "150-220 (only go past 220 if the topic truly needs it)", "scenes": (7, 22),
+              "max_per_visual": 28, "signoff": "thoma out", "spec": (
+        "A vertical Short/Reel, usually 60-90 seconds (150-220 spoken words at a relaxed pace); up to 2 minutes "
+        "(300 words) only when the idea can't be made clear in less. Never pad. "
+        "Scene 1 is the hook in under 12 words: a surprising question or fact about what the viewer "
+        "will understand. No greeting, no self-introduction. One concept only; if it is abstract, carry it with one "
+        "simple everyday example from start to end. One diagram, one 'here's the trick' moment. The last line lands the takeaway, ends with 'Thoma out!', and should flow "
         "back into the hook so the Short loops naturally.")},
     # 8+ minutes: YouTube only allows mid-roll ads from 8:00, which roughly doubles what a video earns.
     "long": {"words": (1340, 1600), "target": "1400-1500", "scenes": (45, 85), "max_per_visual": 32, "signoff": "thoma out", "spec": (
@@ -27,7 +30,8 @@ FORMATS = {
         "Scene 1-2 is the hook: what the viewer will finally understand, why it matters to them, and an open "
         "loop ('by the end you'll know why ...'). Scene 3: 'I'm Thoma, your friendly neighbourhood tech imp. Let's "
         "poke at <topic>.' Then 5-7 chapters that build on each other: the everyday analogy, the real mechanism "
-        "step by step SHOWN with concept visuals and diagrams, a concrete worked example (code if it is a coding "
+        "step by step SHOWN with concept visuals and diagrams (every abstract step gets a simple everyday example; "
+        "skip it where the thing is already concrete), a concrete worked example (code if it is a coding "
         "topic), the common misconception, what it means in real life and what's new in the field, then the "
         "takeaway. Every 60-90 seconds re-hook the viewer with a new question or twist ('but here's where it gets "
         "weird...'). Around the middle, one natural line inviting people to subscribe for a new explainer every "
@@ -50,7 +54,7 @@ SHORT_FORMATS = {
             "words (never a generic line). Say what the tool is in one line, then how to use it in 3 simple steps (a steps or "
             "diagram visual), who it's great for, and one honest limitation. Mention price only if the research "
             "notes state it, phrased 'as of <month year>'. Never invent features. It must feel like a friend's "
-            "tip, not an advert. Title like '<Tool>: the AI that <does X> (in 60 seconds)'.",
+            "tip, not an advert. Title like '<Tool>: the AI that <does X>'.",
     "debate": "Format: the big debate, settled with facts. Open with the question people argue about, in "
               "plain words (scene 1, a compare visual of the two camps). Then SHOW what is really happening "
               "inside, step by step, with concept visuals (tokens / predict / vectors / network / chat), so the "
@@ -60,20 +64,25 @@ SHORT_FORMATS = {
               "then the sign-off. Title is the debate question, e.g. 'Does ChatGPT actually think?'",
     "news": "Format: fresh news, explained. Start from what just happened (from the research notes, stating "
             "only what the notes support), then explain the underlying concept a beginner needs to understand "
-            "it. Title like '<news thing>, explained in 60 seconds'.",
+            "it. Title like '<news thing>, explained simply'.",
 }
 
 SCRIPT_SHAPE = """Reply with JSON only:
-{"title":"<=70 chars. Short: '<Topic> in 60 seconds'. Long: '<Topic> explained in 5 minutes' or 'What is <Topic>? (explained simply)'. Plain search words first.",
+{"title":"<=70 chars. Short: a curiosity question or '<Topic>, explained simply'. Long: '<Topic> explained in 5 minutes' or 'What is <Topic>? (explained simply)'. Plain search words first.",
  "description":"3-5 sentences. The first sentence repeats the main search words naturally (it shows in search results). Then what the viewer learns, plain and helpful, no hashtags, no timestamps",
  "tags":["10-15 search tags people really type, most specific first"],
  "hashtags":["3-5 hashtags without #"],
  "thumb_text":"2-5 BIG words for the thumbnail, one *highlighted*, <=30 chars, e.g. 'RAG in *5 minutes*'",
  "thumb_icon":"one icon name",
  "pinned_comment":"one short question viewers will want to answer (their opinion or guess), pinned as the first comment",
+ "terms":[{"term":"embedding","scene":6,"plain":"the exact plain words Thoma uses in that scene to explain it"}],
  "scenes":[{"say":"what Thoma says, 1-2 natural spoken sentences, <=40 words","mood":"talk","visual":{...}}]}
 mood is one of: talk, point, think, wow, laugh, wave (wave only in the first or last scene).
 Use think before a question, wow on a surprising fact, laugh right after a joke.
+"terms" lists EVERY technical word or acronym the narration uses (model, token, RAG, API, ...), with the scene
+that explains it in plain words: the scene where it is first said, or the very next one. Fewer terms is better:
+if a plain phrase works ("a program trained on lots of text"), say that instead of the term.
+Keep one word for one thing all video long (don't switch "pages" to "chunks" to "cards").
 In "say" you may use one <laugh> per video after a joke; no other tags, and no pauses."""
 
 TOOL_LONG = ("This video is a hands-on tutorial on an AI tool: what it is, then how to use it for 2-3 real "
@@ -81,26 +90,42 @@ TOOL_LONG = ("This video is a hands-on tutorial on an AI tool: what it is, then 
              "alternatives in a line, and pricing only as stated in the research notes, with the month and year. "
              "Never invent features. Helpful and honest, never an advert.")
 
-TOOL_RESEARCH_SYSTEM = """You prepare research notes about an AI tool for a beginner tutorial, using ONLY the
-text from the tool's own website given below. Extract: what it does in one line, who it's for, the main
-features, how a beginner would start, whether a free plan exists and prices (only if stated, with the exact
-wording), and any limits mentioned. If something is not on the page, write "unknown" - never guess.
-Reply as JSON: {"notes": ["...", "..."], "beginner_questions": ["...", "..."]}"""
+TOOL_RESEARCH_SYSTEM = """You prepare research notes about an AI tool for a beginner tutorial. Facts about the
+tool (what it does, who it's for, features, free plan and prices with the exact wording, limits) come ONLY from
+the official website text. The material may also include transcripts of the most-watched tutorials of this
+tool: use them to learn how people really use it (the real steps, useful tips, what beginners get stuck on,
+which uses viewers love), and turn the structure of the best one into a beat sheet: the steps in order,
+each described by the job it does for the viewer, never by its words. If a fact is in neither, leave it
+out completely: never note what is missing or "unknown", and never guess. Write in your own words.
+Reply as JSON: {"notes": ["...", "..."], "teaching": ["what makes it click for beginners", "..."],
+ "beat_sheet": ["1. hook: ...", "..."], "beginner_questions": ["...", "..."]}"""
 
 RESEARCH_SYSTEM = """You prepare research notes for a beginner tech explainer. From the source
 material, extract what is true and useful: key concepts, how it works step by step, concrete
 numbers or examples, common misconceptions, and anything time-sensitive (versions, dates).
-Write neutral notes in your own words, never copy sentences. Reply as JSON:
-{"notes": ["...", "..."], "beginner_questions": ["what a beginner would ask", "..."]}"""
+The material may also include transcripts of the most-watched YouTube explainers on this topic. Study
+HOW they make it click for ordinary viewers: the order they explain things in, the kind of everyday
+example they lean on, and where viewers usually get confused. Write that down as teaching notes, and
+turn the structure of the best one into a beat sheet: the steps in order, each described by the job it
+does for the viewer ("hook: a problem everyone has had", "show what goes wrong without it"), never by
+its words or its example. Then suggest everyday examples of our own that fit those beats and are
+DIFFERENT from the ones the popular videos use.
+Write everything in your own words, never copy sentences. Reply as JSON:
+{"notes": ["...", "..."], "teaching": ["what makes this click for beginners: order, kind of example, pitfalls", "..."],
+ "beat_sheet": ["1. hook: ...", "2. ...", "..."],
+ "fresh_examples": ["an everyday situation a 10th-standard student knows, that carries the idea", "..."],
+ "beginner_questions": ["what a beginner would ask", "..."]}"""
 
 REVIEW_SYSTEM = """You are a strict editor for a beginner tech channel. Check the script for:
 1. accuracy: anything false, misleading or outdated about the technology;
 2. the student test: imagine a 10th-standard student who has never coded hears this once. Write what
    they would tell a friend the video said (student_summary). List every line they would not understand
    or would need to hear twice, every term used before it is explained, and every abstract sentence that
-   needs a concrete example. If there is no single everyday example running through the video, say so;
-3. tone: anything condescending, hype-y, or salesy;
-4. visuals: a visual that does not match what is said in that scene.
+   needs a concrete example. If an abstract idea (how something works inside) has no simple everyday
+   example, say so; don't ask for an example where the line is already concrete (a real tool, a real news event);
+3. consistency: a line that contradicts an earlier one, or one thing called by different names;
+4. tone: anything condescending, hype-y, or salesy;
+5. visuals: a visual that does not match what is said in that scene, or things on screen never mentioned.
 Only list real problems, each pointing at the scene number. Reply as JSON:
 {"student_summary": "...", "ok": true|false, "problems": ["scene 3: ...", ...]}"""
 
@@ -110,6 +135,86 @@ GREETINGS = re.compile(r"^\W*(hi|hello|hey|welcome|namaste|what's up)\b", re.I)
 TYPES = {"title", "bigtext", "stat", "diagram", "steps", "compare", "analogy", "code", "keep", "takeaway",
          "tokens", "predict", "vectors", "network", "chat"}
 CONCEPT = {"tokens", "predict", "vectors", "network", "chat"}
+# Words a 10th-standard student won't know. Each must be listed in script["terms"] with the scene that
+# explains it in plain words, at most one scene after it is first said (the hook gets 3 scenes).
+JARGON = ["neural network", "context window", "vector database", "training data", "fine-tuning", "fine-tune",
+          "open source", "open-source", "model", "token", "embedding", "vector", "parameter", "weights",
+          "dataset", "algorithm", "inference", "chunk", "retrieval", "agent", "database", "latency",
+          "benchmark", "protocol", "framework", "metadata", "schema", "markdown", "api"]
+KNOWN_ACRONYMS = {"AI", "AIS", "OK", "TV", "PC", "ID", "PDF", "PDFS", "USB", "UPI", "SMS", "GPS", "ATM", "PIN",
+                  "CEO", "USA", "UK", "EU", "FAQ", "WIFI"}
+STOP = {"the", "and", "for", "your", "you", "with", "from", "this", "that", "not", "one", "all", "are", "new",
+        "its", "how", "what", "why", "question", "answer", "user", "bot"}
+
+
+def _toks(text):
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def _spoken(label, text):
+    """Is any real word of an on-screen label said (plurals and -ing forms count)?"""
+    words = [w for w in _toks(label) if len(w) >= 3 and w not in STOP]
+    heard = {w[:4] for w in _toks(text)}
+    return not words or any(w[:4] in heard for w in words)
+
+
+def _term_problems(script) -> list[str]:
+    scenes = script["scenes"]
+    listed = {}
+    for t in script.get("terms") or []:
+        if isinstance(t, dict) and t.get("term"):
+            listed[re.sub(r"s$", "", str(t["term"]).lower().strip())] = t
+    first = {}
+    for i, s in enumerate(scenes, 1):
+        low = s.get("say", "").lower()
+        for j in JARGON:
+            if j not in first and re.search(rf"\b{re.escape(j)}s?\b", low):
+                first[j] = i
+        for a in re.findall(r"\b[A-Z]{2,5}s?\b", s.get("say", "")):
+            if a.upper() not in KNOWN_ACRONYMS:
+                first.setdefault(a.rstrip("s").lower(), i)
+    out = []
+    for term, i in first.items():
+        entry = next((e for k, e in listed.items() if term in k or k in term), None)
+        if entry is None and any(term in str(e.get("plain", "")).lower() for e in listed.values()):
+            continue  # part of another term's explanation ("RAG, short for Retrieval-Augmented Generation")
+        late = i + (3 if i == 1 else 1)
+        if entry is None:
+            out.append(f"scene {i} says '{term}' but never explains it. Explain it in plain words right there "
+                       "(or say the plain idea and skip the word), and list it in \"terms\"")
+            continue
+        try:
+            at = int(entry.get("scene"))
+        except (TypeError, ValueError):
+            at = 0
+        plain = entry.get("plain", "")
+        if not 1 <= at <= min(late, len(scenes)) or not _spoken(plain, scenes[at - 1].get("say", "")):
+            out.append(f"'{term}' is first said in scene {i}; explain it in plain words in that scene "
+                       f"(or by scene {late}) and point \"terms\" at the scene that really says it")
+    return out
+
+
+def _label_problems(scenes) -> list[str]:
+    """On-screen things the narration never mentions confuse beginners ('what is that box?')."""
+    out = []
+    for i, s in enumerate(scenes):
+        text, j = s.get("say", ""), i + 1
+        while j < len(scenes) and (scenes[j].get("visual") or {}).get("type") == "keep":
+            text += " " + scenes[j].get("say", "")
+            j += 1
+        v = s.get("visual") or {}
+        if v.get("type") == "diagram":
+            labels = [n.get("label", "") for n in v.get("nodes") or [] if isinstance(n, dict)]
+        elif v.get("type") == "vectors":
+            labels = [" ".join([g.get("label", "")] + list(g.get("items") or []))
+                      for g in v.get("groups") or [] if isinstance(g, dict)]
+        else:
+            continue
+        missing = [l for l in labels if not _spoken(l, text)]
+        if len(missing) >= 3 or (v.get("type") == "vectors" and len(missing) >= 2):
+            out.append(f"scene {i + 1}: the screen shows {missing} but Thoma never mentions them; say what "
+                       "they are or drop them from the visual")
+    return out
 
 
 def words(script) -> int:
@@ -146,7 +251,7 @@ def gates(script: dict, kind: str, idea, check_repeats: bool = True) -> list[str
     tags = script.get("tags", [])
     if len(tags) < 8 or _tags_len(tags) > 450:
         p.append("need 8-15 tags, under 450 characters in total")
-    if kind == "long" and not 3 <= len(script.get("thumb_text", "")) <= 34:
+    if not 3 <= len(script.get("thumb_text", "")) <= 34:  # long: thumbnail; short: cover frame
         p.append("thumb_text must be 2-5 words, <=30 chars")
     if kind == "long" and sum(1 for s in scenes if s.get("chapter")) < 5:
         p.append("mark at least 5 section starts with \"chapter\"")
@@ -201,6 +306,7 @@ def gates(script: dict, kind: str, idea, check_repeats: bool = True) -> list[str
             p.append(f"scenes {start}-{i}: one visual covers {run} spoken words; change the visual at least "
                      f"every {f['max_per_visual']} words (about 10 seconds) so the screen keeps moving")
             break
+    p += _term_problems(script) + _label_problems(scenes)
     rich = sum(1 for k in kinds if k in CONCEPT | {"diagram", "steps", "compare", "analogy", "code", "stat"})
     if rich < (2 if kind == "short" else 14):
         p.append("too few real visuals: use more diagrams, steps, compares, analogies")
@@ -248,6 +354,64 @@ def repair(script: dict) -> dict:
     return script
 
 
+EXAMPLES = Path(__file__).parent.parent / "assets/examples"
+
+
+def save_example(script: dict, kind: str, vid: int) -> None:
+    """An approved script becomes a reference the writer must match (newest 3 per kind are kept)."""
+    d = EXAMPLES / kind
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{vid:04d}.json").write_text(json.dumps(script, indent=1, ensure_ascii=False))
+    for old in sorted(d.glob("*.json"))[:-3]:
+        old.unlink()
+
+
+def example(kind: str) -> str:
+    files = sorted((EXAMPLES / kind).glob("*.json"))
+    if not files:
+        return ""
+    s = json.loads(files[-1].read_text())
+    keep = {k: s[k] for k in ("title", "scenes") if k in s}
+    return ("\n\n# A script the owner approved\nMatch its clarity, pace, use of one running example and visual "
+            "variety. Do NOT reuse its topic, wording or examples.\n" + json.dumps(keep, ensure_ascii=False))
+
+
+def log_review(script: dict, kind: str, topic: str, review: dict) -> None:
+    """Every check is kept, so recurring mistakes show up in `thoma lessons` and in the next brief."""
+    items = db.get_kv("review_log", [])
+    items.append({"at": db.now(), "kind": kind, "topic": topic[:80], "writer": script.get("writer"),
+                  "reviewer": llm.last_provider, "ok": not review.get("problems") or review.get("ok", False),
+                  "problems": review.get("problems", []), "student": review.get("student_summary", "")})
+    db.set_kv("review_log", items[-200:])
+
+
+def recent_catches(kind: str, limit: int = 8) -> str:
+    items = [p for i in db.get_kv("review_log", []) if i["kind"] == kind for p in i["problems"]]
+    return "\n".join(f"- {p[:220]}" for p in items[-limit:])
+
+
+def lessons_report() -> str:
+    items = db.get_kv("review_log", [])
+    if not items:
+        return "No checks logged yet."
+    out = ["First-check pass rate by writer:"]
+    for w in sorted({i["writer"] or "?" for i in items}):
+        mine = [i for i in items if (i["writer"] or "?") == w]
+        out.append(f"  {w:<12} {sum(i['ok'] for i in mine)}/{len(mine)} scripts passed with no problems")
+    out.append("\nMost recent catches (newest last):")
+    out += [f"  [{i['writer']}->{i['reviewer']}] {i['topic'][:40]}: {p[:200]}" for i in items[-15:] for p in i["problems"]]
+    return "\n".join(out)
+
+
+def owner_feedback(limit: int = 12) -> str:
+    """Recent owner notes: what they rejected or asked to fix, and why (pipeline.remember_feedback)."""
+    items = [i for i in db.get_kv("owner_feedback", []) if i.get("note") or i["verdict"] == "rejected"][-limit:]
+    notes: dict[str, list[str]] = {}  # same note on several videos -> one line
+    for i in items:
+        notes.setdefault(i["note"] or "no reason given", []).append(f"{i['verdict']} '{i['title']}'")
+    return "\n".join(f"- {'; '.join(videos)}: {note}" for note, videos in notes.items())
+
+
 def recent_hooks(kind: str) -> list[str]:
     with db.conn() as c:
         rows = c.execute("SELECT script FROM videos WHERE kind=? AND script IS NOT NULL"
@@ -276,19 +440,38 @@ def research(idea) -> str:
     if idea["research"]:
         return idea["research"]
     from . import ideas
-    if ideas.is_tool(idea):
+    tool = ideas.is_tool(idea)
+    # the most-watched explainers (tutorials, for a tool) teach how to make it click
+    top = ideas.top_explainers(f"{idea['source_title']} tutorial" if tool else idea["topic"])
+    popular = "\n\n".join(f"Popular {'tutorial' if tool else 'explainer'} '{v['title']}' ({v['views']:,} views), "
+                           f"transcript:\n{v['transcript'][:5000]}" for v in top)
+    if tool:
         page = _website_text(ideas.tool_site(idea))
-        material = f"Tool: {idea['source_title']}\nTagline: {(idea['source_text'] or '').splitlines()[0]}\n\n{page}"
+        transcript = idea["transcript"] or ""
+        material = (f"Tool: {idea['source_title']}\nTagline: {(idea['source_text'] or '').splitlines()[0]}\n\n"
+                    f"Official website:\n{page[:14000]}\n\n{popular}")
         system = TOOL_RESEARCH_SYSTEM
     else:
         transcript = idea["transcript"] or ("" if idea["source"] == "owner" else ideas.transcript(idea))
         # links in the owner's idea ("/short this new tool https://...") are read as source material
         pages = "\n\n".join(_website_text(u) for u in re.findall(r"https?://\S+", idea["topic"])[:3])
-        material = (f"Title: {idea['source_title'] or idea['topic']}\n{idea['source_text'] or ''}\n\n{transcript or ''}"
-                    f"\n\n{pages}")
+        material = (f"Title: {idea['source_title'] or idea['topic']}\n{idea['source_text'] or ''}\n\n{(transcript or '')[:9000]}"
+                    f"\n\n{pages[:8000]}\n\n{popular}")
         system = RESEARCH_SYSTEM
-    out = llm.ask_json(system, material[:24000] + f"\n\nTopic for our video: {idea['topic']}", "research")
+    if top:  # the copy check (gates) compares the script against these too
+        with db.conn() as c:
+            c.execute("UPDATE ideas SET transcript=? WHERE id=?",
+                      ((transcript or "") + "\n\n" + " ".join(v["transcript"] for v in top), idea["id"]))
+    out = llm.ask_json(system, material[:32000] + f"\n\nTopic for our video: {idea['topic']}", "research")
     notes = "\n".join(f"- {n}" for n in out.get("notes", []))
+    if out.get("teaching"):
+        notes += ("\nHow the most-watched explainers make this click (learn from it; find your OWN example, "
+                  "never reuse their wording):\n" + "\n".join(f"- {t}" for t in out["teaching"]))
+    if out.get("beat_sheet"):
+        notes += ("\nBeat sheet: the order that worked in the most-watched explainers. Follow it, in your own "
+                  "words and with your own example:\n" + "\n".join(f"- {b}" for b in out["beat_sheet"]))
+    if out.get("fresh_examples"):
+        notes += "\nExample ideas of our own (pick one, or a better one):\n" + "\n".join(f"- {e}" for e in out["fresh_examples"])
     if out.get("beginner_questions"):
         notes += "\nBeginner questions to answer:\n" + "\n".join(f"- {q}" for q in out["beginner_questions"])
     with db.conn() as c:
@@ -352,7 +535,7 @@ def write(idea, kind: str) -> dict:
     if fmt == "tool-tutorial":
         spec += "\n" + TOOL_LONG
     spec += f"\nToday's date: {date.today():%B %Y}."
-    system = f"{CHARACTER}\n\n# Format\n{spec}\n\n{visuals.SPEC}\n\n{SCRIPT_SHAPE}"
+    system = f"{CHARACTER}\n\n# Format\n{spec}\n\n{visuals.SPEC}\n\n{SCRIPT_SHAPE}{example(kind)}"
     lo, hi = FORMATS[kind]["words"]
     brief = (f"Topic: {idea['topic']}\nWord budget: aim for {FORMATS[kind]['target']} spoken words in total "
              f"(hard limits {lo}-{hi}). Count them before replying.\n")
@@ -360,8 +543,10 @@ def write(idea, kind: str) -> dict:
         brief += f"Suggested analogy (use it or find a better one): {idea['angle']}\n"
     if idea["source_title"]:
         brief += (f"Inspired by the video '{idea['source_title']}'. Use it only to know what people are "
-                  "curious about; do not follow its structure or wording.\n")
+                  "curious about; never reuse its wording or examples.\n")
     notes = research(idea)
+    with db.conn() as c:  # research may have stored more source text for the copy check
+        idea = c.execute("SELECT * FROM ideas WHERE id=?", (idea["id"],)).fetchone()
     if notes:
         brief += f"\nResearch notes (facts to rely on; explain them your own way):\n{notes}\n"
     with db.conn() as c:
@@ -369,6 +554,12 @@ def write(idea, kind: str) -> dict:
     if earlier:
         brief += ("\nThis topic already has a video: " + "; ".join(f"'{t}'" for t in earlier) +
                   ". Take a clearly different angle, hook and title.\n")
+    catches = recent_catches(kind)
+    if catches:
+        brief += f"\nMistakes the checker caught in recent drafts. Don't make them:\n{catches}\n"
+    lessons = owner_feedback()
+    if lessons:
+        brief += f"\nThe channel owner's feedback on earlier videos. Learn from it; don't repeat these mistakes:\n{lessons}\n"
     hooks = recent_hooks(kind)
     if hooks:
         brief += "\nRecent hooks (do NOT open the same way):\n" + "\n".join(f"- {h}" for h in hooks) + "\n"
@@ -383,8 +574,11 @@ def write(idea, kind: str) -> dict:
             prompt += (f"\nYour previous draft:\n{json.dumps(script, ensure_ascii=False)}\n\n"
                        "Fix ALL of these problems and return the full corrected script:\n"
                        + "\n".join(f"- {x}" for x in problems)
-                       + f"\nKeep the total spoken words between {lo} and {hi} (count them).")
+                       + f"\nThe draft has {words(script)} spoken words; keep it between {lo} and {hi}. Fixes "
+                       "must not grow the script: when you add an explanation, cut the same number of words "
+                       "elsewhere, and change only the scenes the problems name.")
         script = repair(llm.ask_json(system, prompt, f"write-{kind}"))
+        script["writer"] = llm.last_provider
         problems = gates(script, kind, idea)
         if problems:
             log.info("draft %d failed gates: %s", attempt + 1, problems)
@@ -393,6 +587,7 @@ def write(idea, kind: str) -> dict:
         if reviewed:
             return script
         review = llm.ask_json(REVIEW_SYSTEM, json.dumps(script, ensure_ascii=False), "review")
+        log_review(script, kind, idea["topic"], review)
         reviewed = True
         deadline = max(deadline, attempt + 3)
         problems = review.get("problems", []) if not review.get("ok", True) else []

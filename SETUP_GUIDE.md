@@ -313,7 +313,7 @@ Most days you only touch your phone:
 - **Spotted a mistake?** Send `/fix 12 at 0:23 the word "machinery" is too technical, say it simply`
   (or "scene 4 is wrong: it's 2026, not 2024"). The studio changes only that part, re-records only the
   voice that changed, re-renders, and sends you the new version. Already uploaded? `/reject 12` first.
-- **Going on holiday?** `/pause`, then `/resume` later. `/status` shows what's going on.
+- **Going on holiday?** `/pause`, then `/resume` later. `/status` shows what's going on; `/plan` shows the coming week slot by slot.
 
 To change how it works (posting times, how many Shorts, the voice, Thoma's personality), edit
 `config.yaml`, or open the folder in Qoder and just ask. Qoder reads `AGENTS.md` and knows the project.

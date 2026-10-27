@@ -19,6 +19,7 @@ def main():
     p.add_argument("kind", choices=["short", "long"])
     p.add_argument("--idea", type=int)
     p.add_argument("--script", help="render this script JSON instead of writing one")
+    p.add_argument("--llm", help="one provider (e.g. claude-opus) does research, writing and checking for this video")
     p = sub.add_parser("preview", help="render still frames of a script JSON (fast visual check)")
     p.add_argument("script")
     p.add_argument("kind", choices=["short", "long"])
@@ -33,6 +34,8 @@ def main():
     sub.add_parser("tick", help="one scheduler pass")
     sub.add_parser("daemon", help="run forever (tick every schedule.tick_minutes)")
     sub.add_parser("status", help="queue and provider status")
+    sub.add_parser("plan", help="the coming week: which video goes out in each slot")
+    sub.add_parser("lessons", help="what the checker keeps catching in the writer's drafts (to improve the prompts)")
     sub.add_parser("test-llm", help="check which LLM providers answer")
     sub.add_parser("auth-youtube", help="sign in to YouTube (once)")
     a = ap.parse_args()
@@ -50,6 +53,8 @@ def main():
     elif a.cmd == "topic":
         print(f"queued as idea #{ideas.add_topic(' '.join(a.text))}")
     elif a.cmd == "make":
+        if a.llm:
+            cfg()["llm"]["roles"] = {r: [a.llm] for r in ("research", "write", "review", "triage")}
         script = json.load(open(a.script)) if a.script else None
         vid = pipeline.make(a.kind, a.idea, script)
         print(f"#{vid} ready: {db.video(vid)['path']}")
@@ -61,6 +66,10 @@ def main():
             print(p)
     elif a.cmd == "approve":
         db.update_video(a.id, status="approved")
+        v = db.video(a.id)
+        pipeline.remember_feedback(v, "approved")
+        from . import writer
+        writer.save_example(json.loads(v["script"]), v["kind"], a.id)
     elif a.cmd == "reject":
         db.update_video(a.id, status="rejected")
     elif a.cmd == "publish":
@@ -78,8 +87,13 @@ def main():
         while True:
             pipeline.tick()
             time.sleep(cfg()["schedule"]["tick_minutes"] * 60)
+    elif a.cmd == "lessons":
+        from . import writer
+        print(writer.lessons_report())
     elif a.cmd == "status":
         print(pipeline.status_text())
+    elif a.cmd == "plan":
+        print(pipeline.plan_text())
     elif a.cmd == "test-llm":
         from . import llm
         for prov in cfg()["llm"]["providers"]:
