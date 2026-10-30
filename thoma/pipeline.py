@@ -40,9 +40,8 @@ def _hm(s: str):
     return int(h) * 60 + int(m)
 
 
-def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> int:
-    """Write (unless a script is given), render, and queue one video. Returns its id."""
-    from . import render  # heavy imports only when rendering
+def write_video(kind: str, idea_id: int | None = None, script: dict | None = None) -> int:
+    """Write and check a script (unless one is given). The video waits as 'scripted' until rendered."""
     with db.conn() as c:
         idea = (c.execute("SELECT * FROM ideas WHERE id=?", (idea_id,)).fetchone() if idea_id
                 else None if script else ideas.next_idea(kind))
@@ -53,20 +52,130 @@ def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> i
     try:
         if script is None:
             script = writer.write(idea, kind)
-        db.update_video(vid, status="rendering", title=script["title"], script=json.dumps(script, ensure_ascii=False))
-        out_dir = OUT / f"{vid:04d}-{kind}"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False))
-        path = render.render(script, kind, out_dir)  # adds chapter times to the script
-        (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False))
-        db.update_video(vid, status="ready", path=str(path), script=json.dumps(script, ensure_ascii=False))
-        if idea:
-            with db.conn() as c:
-                col = "long_made" if kind == "long" else "shorts_made"
-                c.execute(f"UPDATE ideas SET {col}={col}+1 WHERE id=?", (idea["id"],))
     except Exception as e:
         db.update_video(vid, status="failed", error=str(e)[:1000])
         raise
+    out_dir = OUT / f"{vid:04d}-{kind}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False))
+    db.update_video(vid, status="scripted", title=script["title"], script=json.dumps(script, ensure_ascii=False))
+    if kind in cfg()["voice"].get("record", []):  # the owner narrates this kind: wait for their recording
+        ask_recording(vid)
+    if idea:
+        with db.conn() as c:
+            col = "long_made" if kind == "long" else "shorts_made"
+            c.execute(f"UPDATE ideas SET {col}={col}+1 WHERE id=?", (idea["id"],))
+    return vid
+
+
+def render_video(vid: int) -> Path:
+    """Voice and render a scripted video, then send it to the owner. If no voice has quota left, it
+    goes back to 'scripted' and is rendered on a later tick (finished voice chunks are kept)."""
+    from . import render, voice  # heavy imports only when rendering
+    v = db.video(vid)
+    kind, script = v["kind"], json.loads(v["script"])
+    out_dir = OUT / f"{vid:04d}-{kind}"
+    if writer.words(script) > writer.FORMATS[kind]["words"][1] and v["idea_id"]:
+        script = rewrite_to_length(vid)
+    db.update_video(vid, status="rendering")
+    try:
+        path = render.render(script, kind, out_dir)  # adds chapter times to the script
+    except voice.VoiceUnavailable:
+        db.update_video(vid, status="scripted")
+        raise
+    except voice.RecordingMismatch as e:
+        (out_dir / "owner_voice.wav").rename(out_dir / "owner_voice.rejected.wav")
+        db.update_video(vid, status="recording")
+        notify.send(f"#{vid}: your recording doesn't follow the script ({e}). Please record the reading sheet "
+                    f"again and reply to it, or send /ai {vid} to use the AI voice.", db.get_kv(f"record_sheet:{vid}"))
+        raise
+    except Exception as e:
+        db.update_video(vid, status="failed", error=str(e)[:1000])
+        raise
+    (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False))
+    db.update_video(vid, status="ready", path=str(path), script=json.dumps(script, ensure_ascii=False))
+    _announce(vid, script, kind, path)
+    return path
+
+
+def rewrite_to_length(vid: int) -> dict:
+    """A script written before the length limit changed (owner, 2026-10-30: 5 minutes at most) is written
+    again at the new length. The topic's research is cached, so this is one writing pass plus the check."""
+    v = db.video(vid)
+    with db.conn() as c:
+        idea = c.execute("SELECT * FROM ideas WHERE id=?", (v["idea_id"],)).fetchone()
+    log.info("#%d is %d words, over the %s limit: rewriting it", vid, writer.words(json.loads(v["script"])), v["kind"])
+    script = writer.write(idea, v["kind"])
+    (OUT / f"{vid:04d}-{v['kind']}" / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False))
+    db.update_video(vid, title=script["title"], script=json.dumps(script, ensure_ascii=False))
+    return script
+
+
+def render_scripted() -> int:
+    """Render every waiting script, oldest first (a long video before its Short). Stops when the voice
+    quota is used up for today. Returns how many were rendered."""
+    from .voice import RecordingMismatch, VoiceUnavailable
+    done = 0
+    with db.conn() as c:
+        # a render cut off midway (laptop shut, process stopped) stays 'rendering': queue it again. A real
+        # render takes ~30 min; its saved voice takes mean no voice quota is spent twice.
+        stale = (datetime.now() - timedelta(hours=2)).isoformat(timespec="seconds")
+        c.execute("UPDATE videos SET status='scripted' WHERE status='rendering' AND updated < ?", (stale,))
+        waiting = [r[0] for r in c.execute("SELECT id FROM videos WHERE status='scripted' ORDER BY id")]
+    for vid in waiting:
+        try:
+            render_video(vid)
+            done += 1
+        except VoiceUnavailable as e:
+            log.warning("voice quota used up, #%d and later wait for the next run: %s", vid, e)
+            break
+        except RecordingMismatch:
+            continue  # the owner was asked to record again
+        except Exception as e:
+            log.exception("render of #%d failed", vid)
+            notify.send(f"#{vid} failed to render: {str(e)[:300]}")
+    return done
+
+
+def series(n: int = 10, render: bool = True) -> list[int]:
+    """'How it works' batch: for each of the next n topics in assets/how_it_works.txt, write the long
+    video and its teaser Short (scripts checked by the reviewer), then render as much as today's voice
+    quota allows. The rest is rendered by later runs or by the daemon's ticks. When the first writer's
+    drafts keep failing the checks, the next writer in llm.roles.write gets a turn."""
+    ideas.seed_how_it_works()
+    with db.conn() as c:
+        todo = c.execute("SELECT id, topic FROM ideas WHERE source='how-it-works' AND status='new' AND long_made=0"
+                         " ORDER BY priority DESC, id DESC LIMIT ?", (n,)).fetchall()
+    made = []
+    writers = list(cfg()["llm"]["roles"]["write"])
+    for idea in todo:
+        for kind in ("long", "short"):
+            for k, name in enumerate(writers):
+                cfg()["llm"]["roles"]["write"] = writers[k:]
+                try:
+                    made.append(write_video(kind, idea["id"]))
+                    log.info("series: wrote #%d %s for %r", made[-1], kind, idea["topic"])
+                    break
+                except Exception as e:  # incl. AllProvidersFailed: a reply that never parsed is that writer failing
+                    log.warning("series: %s by %s for %r failed: %s", kind, name, idea["topic"], e)
+            else:
+                notify.send(f"Could not write the {kind} video on '{idea['topic']}'; see the log.")
+                break  # no teaser without its long video
+        cfg()["llm"]["roles"]["write"] = writers
+    if render:
+        render_scripted()
+    return made
+
+
+def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> int:
+    """Write (unless a script is given), render, and queue one video. Returns its id."""
+    vid = write_video(kind, idea_id, script)
+    if db.video(vid)["status"] == "scripted":  # (not when it waits for the owner's recording)
+        render_video(vid)
+    return vid
+
+
+def _announce(vid: int, script: dict, kind: str, path: Path):
     if cfg()["publish"]["mode"] == "approve":
         note = f"Reply /approve {vid} or /reject {vid}"
     else:
@@ -75,6 +184,97 @@ def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> i
     db.set_kv(f"telegram_msg:{vid}", mid)
     upload_pack(script, kind, path.parent, mid)
     return vid
+
+
+RECORD_TIPS = """HOW TO RECORD (about {minutes} minutes)
+- One take, top to bottom. Phone 15-20 cm from your mouth, in a quiet room with soft things around
+  (a bedroom with curtains beats an empty hall). Fan off.
+- Talk to one friend, not to a microphone: brisk, warm, smiling, the way you'd explain it over tea.
+  Don't read word by word; small changes in wording are fine.
+- Fluffed a line? Pause a second and say the whole sentence again. The studio cuts the first try out.
+- Lines in [brackets] are chapter names: don't read them.
+- Then reply to THIS message with the voice note (or an audio file under 20 MB, e.g. .m4a/.mp3).
+  Bigger file? Copy it to the laptop and run: uv run thoma record {vid} <file>
+- No time? Send /ai {vid} and Thoma's AI voice reads it."""
+
+
+def reading_sheet(vid: int, script: dict) -> str:
+    """The script as the owner reads it aloud: paragraphs per scene, chapter names in brackets."""
+    import re
+    n = sum(len(sc["say"].split()) for sc in script["scenes"])
+    lines = [script["title"], "", RECORD_TIPS.format(minutes=round(n / 150), vid=vid), "", "-" * 40, ""]
+    for sc in script["scenes"]:
+        if sc.get("chapter"):
+            lines += ["", f"[{sc['chapter']}]"]
+        lines.append(re.sub(r"<[^>]{1,30}>", "", sc["say"]).replace("*", "").strip())
+    return "\n".join(lines) + "\n"
+
+
+def ask_recording(vid: int, why: str = "") -> None:
+    """Send the owner the reading sheet; the video waits as 'recording' until their audio arrives
+    (or voice.record_wait_hours pass, then the AI voice reads it)."""
+    v = db.video(vid)
+    script = json.loads(v["script"])
+    db.update_video(vid, status="recording")
+    db.set_kv(f"record_asked:{vid}", db.now())
+    hours = cfg()["voice"].get("record_wait_hours", 20)
+    mid = notify.send_text_file(f"thoma-{vid}-read-aloud.txt", reading_sheet(vid, script),
+                                f"#{vid} {v['kind']}: '{script['title']}' is written. {why}Please narrate it: the "
+                                f"reading sheet and tips are in this file. Reply to this message with your recording. "
+                                f"(No recording in {hours} h: the AI voice reads it, so no slot is missed.)")
+    if mid:
+        db.set_kv(f"record_msg:{mid}", vid)
+        db.set_kv(f"record_sheet:{vid}", mid)
+
+
+def save_recording(vid: int, src: Path) -> Path:
+    """The owner's narration -> out/<id>/owner_voice.wav; the next render uses it instead of the AI voice."""
+    import subprocess
+    import imageio_ffmpeg
+    v = db.video(vid)
+    out = OUT / f"{vid:04d}-{v['kind']}" / "owner_voice.wav"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-loglevel", "error", "-i", str(src), "-ac", "1",
+                    "-ar", "48000", str(out)], check=True)
+    db.update_video(vid, status="scripted", error=None)
+    log.info("#%d: owner's recording saved (%s)", vid, src.name)
+    return out
+
+
+def _recording_from_telegram(info: dict) -> None:
+    import re
+    with db.conn() as c:
+        waiting = [r[0] for r in c.execute("SELECT id FROM videos WHERE status='recording' ORDER BY id")]
+    hint = re.search(r"#(\d+)|^\s*(\d+)\s*$", info.get("caption") or "")
+    vid = (int(hint.group(1) or hint.group(2)) if hint else db.get_kv(f"record_msg:{info.get('reply_to')}")
+           or (waiting[0] if len(waiting) == 1 else None))
+    if not vid or not db.video(vid):
+        notify.send("Got a recording, but which video is it for? Reply to that video's reading sheet, or send it "
+                    f"again with the number as the caption (e.g. #12). Waiting for a recording: {waiting or 'none'}.")
+        return
+    if info.get("size", 0) > 20 << 20:
+        notify.send(f"That file is over 20 MB, which Telegram bots can't fetch. Send it as a voice note or .m4a, "
+                    f"or copy it to the laptop and run: uv run thoma record {vid} <file>")
+        return
+    folder = OUT / f"{vid:04d}-{db.video(vid)['kind']}"
+    folder.mkdir(parents=True, exist_ok=True)
+    take = notify.download(info["file_id"], folder / ("owner_take" + Path(info.get("name") or "x.ogg").suffix))
+    save_recording(vid, take)
+    notify.send(f"Got your recording for #{vid}. Cleaning it up and matching the visuals to your words now; "
+                "the video comes here when it's done.")
+
+
+def _recording_timeouts() -> None:
+    """A recording that never came: the AI voice reads the script, so the slot isn't missed."""
+    hours = cfg()["voice"].get("record_wait_hours", 20)
+    with db.conn() as c:
+        waiting = [r[0] for r in c.execute("SELECT id FROM videos WHERE status='recording'")]
+    for vid in waiting:
+        asked = db.get_kv(f"record_asked:{vid}")
+        if asked and datetime.fromisoformat(asked) < datetime.now() - timedelta(hours=hours):
+            db.update_video(vid, status="scripted")
+            notify.send(f"No recording for #{vid} after {hours} h, so the AI voice reads it. "
+                        f"(/record {vid} if you'd still like to narrate it.)")
 
 
 def remember_feedback(v, verdict: str, note: str = "") -> None:
@@ -101,6 +301,10 @@ def fix(vid: int, feedback: str) -> None:
     changed += list(range(len(script["scenes"]) + 1, len(new["scenes"]) + 1))
     db.update_video(vid, status="rendering", title=new["title"], script=json.dumps(new, ensure_ascii=False))
     (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False))
+    if changed and (out_dir / "owner_voice.wav").exists():  # their old recording no longer matches the words
+        (out_dir / "owner_voice.wav").rename(out_dir / "owner_voice.old.wav")
+        ask_recording(vid, f"The fix changed scene(s) {', '.join(map(str, changed))}, so it needs a new recording. ")
+        return
     path = render.render(new, kind, out_dir)
     (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False))
     db.update_video(vid, status="ready", path=str(path), script=json.dumps(new, ensure_ascii=False), publish_at=None)
@@ -114,8 +318,13 @@ def upload_pack(script: dict, kind: str, out_dir, reply_to=None):
     """Everything needed to post the video by hand: title, description, tags, thumbnail, pinned comment."""
     from .publish import caption
     tags = ", ".join(script.get("tags", []))
+    related = ""
+    if script.get("related"):  # a teaser Short: YouTube's API can't set its link, the Studio app can
+        related = (f"\n\nRelated video (the Short's link to the full video): #{script['related']['video']} "
+                   f"'{script['related']['title']}'. Once that video is public: YouTube Studio -> this Short -> "
+                   "Edit -> Related video -> pick it.")
     notify.send(f"UPLOAD PACK\n\nTitle:\n{script['title']}\n\nDescription:\n{caption(script, kind, 'youtube')}\n\n"
-                f"Tags:\n{tags}\n\nPin this comment:\n{script.get('pinned_comment', '')}", reply_to=reply_to)
+                f"Tags:\n{tags}\n\nPin this comment:\n{script.get('pinned_comment', '')}{related}", reply_to=reply_to)
     thumb = out_dir / "thumbnail.jpg"
     if kind == "long" and thumb.exists():
         notify.send_photo(thumb, "Thumbnail (1280x720)", reply_to=reply_to)
@@ -161,8 +370,14 @@ def schedule(video_id: int, at: datetime | None = None) -> bool:
     if at is None and v["publish_at"]:
         at = datetime.fromisoformat(v["publish_at"])
     if at is None:
-        free = [t for t in slots(v["kind"], now + timedelta(minutes=30), 24 * 14)
-                if t.isoformat() not in _taken(v["kind"])]
+        after = now + timedelta(minutes=30)
+        full = _full_video(script)
+        if full is not None:  # a teaser Short goes out after its long video, so it can link to it
+            if full["status"] not in ("scheduled", "published") or not full["publish_at"]:
+                log.info("#%d waits for its long video #%d to be scheduled", video_id, full["id"])
+                return False
+            after = max(after, datetime.fromisoformat(full["publish_at"]))
+        free = [t for t in slots(v["kind"], after, 24 * 21) if t.isoformat() not in _taken(v["kind"])]
         if not free:
             return False
         at = free[0]
@@ -200,6 +415,13 @@ def schedule(video_id: int, at: datetime | None = None) -> bool:
                f"this video -> Visibility -> Schedule -> {_when(at)}.")
     notify.send(f"#{video_id} scheduled for {_when(at)}: {v['title']}\n" + "\n".join(links) + tip)
     return ok
+
+
+def _full_video(script: dict):
+    """The long video a teaser Short points to, unless it was dropped (then the Short goes out alone)."""
+    rel = script.get("related")
+    v = db.video(rel["video"]) if rel else None
+    return v if v and v["status"] not in ("failed", "rejected") else None
 
 
 def publish_due():
@@ -266,6 +488,17 @@ def _handle_owner_replies():
             remember_feedback(v, "rejected", reason)
             notify.send(f"#{vid} rejected." + ("" if reason else f" Tip: add why (/reject {vid} too technical) "
                                                 "and every future script learns from it."))
+        elif cmd == "recording":
+            try:
+                _recording_from_telegram(json.loads(arg))
+            except Exception as e:
+                log.exception("recording from Telegram failed")
+                notify.send(f"Could not use that recording: {str(e)[:200]}")
+        elif cmd in ("ai", "aivoice") and v and v["status"] == "recording":
+            db.update_video(vid, status="scripted")
+            notify.send(f"OK, the AI voice reads #{vid}.")
+        elif cmd == "record" and v and v["status"] in ("scripted", "recording", "ready", "approved", "failed", "rejected"):
+            ask_recording(vid)
         elif cmd == "topic" and arg:
             notify.send(f"Got it: '{arg}' is next in line (idea #{ideas.add_topic(arg)}).")
         elif cmd in ("short", "reel", "long") and arg:  # owner's own idea: research and make it right away
@@ -300,7 +533,7 @@ def _due_kind(now: datetime) -> str | None:
     for kind, max_fail in (("long", 2), ("short", 3)):
         upcoming = len(slots(kind, now, sc.get("plan_ahead_hours", 36)))
         with db.conn() as c:
-            lined_up = c.execute("SELECT COUNT(*) FROM videos WHERE kind=? AND (status IN ('writing','rendering',"
+            lined_up = c.execute("SELECT COUNT(*) FROM videos WHERE kind=? AND (status IN ('writing','scripted','rendering',"
                                  "'ready','approved') OR (status='scheduled' AND publish_at > ?))",
                                  (kind, now.isoformat())).fetchone()[0]
             failed = c.execute("SELECT COUNT(*) FROM videos WHERE kind=? AND status='failed' AND created >= ?",
@@ -340,6 +573,7 @@ def tick():
         return
     now = local_now()
     _handle_owner_replies()
+    _recording_timeouts()
     cleanup()
     if db.get_kv("paused"):
         return
@@ -367,6 +601,8 @@ def tick():
                 raise
             except Exception as e:
                 notify.send(f"Could not make your {kind} (idea #{idea_id}): {str(e)[:300]}")
+        if render_scripted() == 0 and _voice_waiting():
+            return  # scripts are waiting for tomorrow's voice quota; don't write more yet
         last = db.get_kv("ideas_refreshed")
         if not last or datetime.fromisoformat(last) < datetime.now() - timedelta(hours=cfg()["sources"]["refresh_hours"]):
             ideas.refresh()
@@ -382,6 +618,11 @@ def tick():
         notify.send(f"Studio error: {str(e)[:300]}")
 
 
+def _voice_waiting() -> bool:
+    with db.conn() as c:
+        return c.execute("SELECT COUNT(*) FROM videos WHERE status='scripted'").fetchone()[0] > 0
+
+
 def plan_text(days: int = 7) -> str:
     """The coming week, slot by slot: which video goes out then, and what is still missing."""
     now = local_now()
@@ -391,9 +632,11 @@ def plan_text(days: int = 7) -> str:
             " AND publish_at > ?", (now.isoformat(),))}
         # approved videos take the earliest free slots first, then the ones still waiting for you
         queue = {k: list(c.execute("SELECT id, status, title FROM videos WHERE kind=? AND status IN "
-                                   "('approved','ready','writing','rendering') ORDER BY status != 'approved', id", (k,)))
+                                   "('approved','ready','writing','scripted','recording','rendering') ORDER BY status != 'approved', id", (k,)))
                  for k in ("long", "short")}
-    state = {"approved": "approved", "ready": "needs your /approve", "writing": "being made", "rendering": "being made"}
+    state = {"approved": "approved", "ready": "needs your /approve", "writing": "being made",
+             "scripted": "script done, waiting for voice", "rendering": "being made",
+             "recording": "waiting for your recording"}
     lines, gaps = [f"Plan for the next {days} days:"], 0
     for t, kind in sorted((t, k) for k in ("long", "short") for t in slots(k, now, days * 24)):
         r = booked.get((kind, t.isoformat()))

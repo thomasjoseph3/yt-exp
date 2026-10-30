@@ -47,7 +47,9 @@ monetization and grows with the back catalogue, because good explainers keep get
 1. **You stay in the loop.** Review every video on Telegram (`mode: approve`) for at least the
    first month. Reject anything wrong or bland. The studio already fact-checks with a second AI pass.
 2. **A real character with a point of view.** Thoma has a personality, jokes, opinions and a
-   catchphrase. Original animated visuals, not stock footage.
+   catchphrase. Original animated visuals; real photos only to show the real thing (credited, freely
+   licensed, checked by eye), never other people's video clips. Narration can be the owner's own voice
+   (config `voice.record`): the strongest "real creator" signal there is.
 3. **Variety, not a template.** Rotating Short formats (explainer, myth vs fact, "can you guess",
    fresh news), different hooks every time (checked automatically), and different visuals per topic.
 4. **Quality over quantity.** 3 long videos a week (Tue/Thu/Sat, a 4th once quality holds) + 2 Shorts a day. If any video is weak, skip
@@ -58,7 +60,11 @@ monetization and grows with the back catalogue, because good explainers keep get
    a disclosure line to every description.
 
 ## The growth engine
-- **Two topic lanes.**
+- **Long videos rotate three lanes** (config `sources.long_rotation`): *the big tech debates*
+  (assets/debates.txt + live debates from tech news: up to 5 minutes, both sides, sources in the description;
+  controversy drives comments and shares), *how it really works* (machines and real tech), and *AI concepts*.
+  Each debate and how-it-works video gets a teaser Short that sends viewers to it.
+- **Two topic lanes for the AI concepts.**
   - *Fresh:* when IBM Technology, Fireship or ByteMonk cover something new, Thoma explains the
     underlying concept within a day, while people are searching for it.
   - *Evergreen:* "What is an API / Docker / RAG" topics that get searched for years and build watch hours.

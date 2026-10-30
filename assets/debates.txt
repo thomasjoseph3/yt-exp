@@ -1,0 +1,19 @@
+# The big tech debates: 8-10 minute deep dives researched from news on every side (ideas.debate_research).
+# Each becomes a long video plus a teaser Short that points to it. First line is made first.
+# Format: question people search | the sharpest real moment to open with, or the two sides (optional)
+# Picked 2026-10-30: live arguments with steady search demand, explained so a 10th-standard student can judge.
+# Fresh debates also arrive by themselves from tech news (config sources.news_feeds), for a week or so.
+Is the AI bubble about to pop? | chip makers lending money to customers who use it to buy their chips
+Will AI take your job? | which jobs companies are really cutting because of AI, and which ones are growing
+Is AI art stealing from artists? | the court cases between artists, photo agencies and AI image companies
+Are self-driving cars actually safer than human drivers? | robotaxi crash data versus human crash data, per mile
+Is your phone secretly listening to you? | you talk about shoes and then see a shoe ad
+Do AI data centers drink our water and raise power bills? | one town next to a giant new data center
+Can AI detectors really catch students using ChatGPT? | a student wrongly accused of cheating by a detector
+Are deepfakes about to make video proof worthless? | a fake video call that tricked a company into sending millions
+Do phone companies slow down old phones on purpose? | Apple's battery slowdown case and the fine that followed
+Should AI companies pay for the data they train on? | news publishers and authors suing AI companies
+Is AGI really coming in the next few years? | what AI company bosses predict versus what researchers measure
+Is Neuralink safe to put in a human brain? | what happened with the first patient's implant threads
+Are electric cars really better for the planet? | the pollution from making the battery versus years of driving
+Is open-source AI dangerous or our best protection? | anyone can download a powerful model for free

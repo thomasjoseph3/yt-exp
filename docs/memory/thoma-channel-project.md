@@ -40,7 +40,7 @@ Update 2026-10-27 (owner asked for ByteMonk-like richer animation, more natural 
   single-point tech spear (deliberately not a trident, to stay original), flies in at the start, swoops at cuts.
 - Retention editing: cuts rotate slide/zoom-punch/whip/pop, light flash on some cuts, punch-in + shake on
   "wow" moods, bouncier captions.
-- Long videos are now 8-9 min (1340-1600 words) so mid-roll ads are possible; 5+ chapters, re-hooks.
+- SUPERSEDED 2026-10-30: every video is 5 minutes at most (long: 560-700 words, render.py refuses over 5:00). Was: long videos 8-10 min. 5+ chapters, re-hooks.
 - Scripts include pinned_comment; Telegram gets an "UPLOAD PACK" (title, description, tags, thumbnail,
   pinned comment) for manual upload; config channel.youtube_handle adds a subscribe link once set.
 - A video never mixes voice engines (narrate() pins the first chunk's engine).
@@ -76,3 +76,49 @@ Update 2026-10-27 evening:
   second YouTube sign-in). Voice clone: NVIDIA GPU? + 1-2 min sample.
 
 User goal: 10k subscribers in 3 months and real second income; see [[thoma-owner-profile]]. Related: [[use-own-judgment]], [[natural-voice-required]], [[background-long-jobs]].
+
+Update 2026-10-29 ("how it works" lane, owner request):
+- Owner wants videos on how real things work under the hood (self-driving cars, Tesla's flying Roadster...),
+  researched on the open web, not only the 3 source channels (those stay for AI/tech tutorials). Strong hooks,
+  more professional motion graphics, 10th-standard language, 10 long videos + 10 Shorts linked to them.
+- Topics: assets/how_it_works.txt (picked from YouTube demand; first line made first). Ideas source
+  'how-it-works', priority 8. research() for them = Wikipedia + Bing News articles (ideas.web_research) + the
+  top 3 explainers' transcripts.
+- Hooks: research reads the first minute (with timestamps) of the most-watched videos and writes a "hook
+  blueprint" (beats, order, timing, job of each beat); the writer must open with those beats in its own words.
+  Owner said "do exactly like it": we copy the hook's STRUCTURE and timing, never its words (copy gate stays).
+- Formats: writer.HOW_LONG (long, now 4-5 min, Thoma introduces himself only after the hook's promise; gate) and
+  SHORT_FORMATS["teaser"] (the Short explains one surprising part and sends viewers to the full video).
+  A teaser's script has "related": {video, title}; schedule() puts it after its long video's slot, and the
+  upload pack tells the owner to set YouTube Studio -> Short -> Related video (the API can't set it).
+- New visuals (stage.js B.parts/scan/zoom/layers/path/timeline/bars + visuals.SPEC); gates require >=6 of them in
+  a long how-it-works video, >=1 in its Short. Film grain + vignette, chapter cards on long videos.
+- Pipeline: write_video() -> status 'scripted' -> render_video(). `thoma series --n 10 [--no-render]` writes
+  the long + teaser per topic, then renders what the voice quota allows; `thoma render` / the daemon's tick
+  render the rest later. voice.local_fallback=false: when Gemini TTS quota is out, videos wait (no Kokoro voice).
+- Writers: see [[writers-no-opus]].
+- 2026-10-29 the old AI videos' files (#13-#21 in out/) were deleted by hand to free disk (DB still says ready).
+  Disk is ~3.8 GB free; a long video is ~100 MB.
+- 2026-10-29 hooks: research studies the opening minute of the top 5 videos on the topic (full transcripts of the top 3) and writes a hook blueprint. Scripts follow it with the playbook: start mid-moment (scene 1 at most 14 words), the viewer's question, a twist, the promise, all under 30 s. A gate blocks "in this video" / "today we'll" in the first 3 scenes.
+
+Update 2026-10-30 (owner: more videos, proper tech topics, controversy researched into 10-min videos, real images
+too, own voice offered; reference: Fireship "Did the AI bubble just pop?"):
+- New lane "the big tech debates": assets/debates.txt (14 topics, AI bubble first) + tech news feeds triaged for
+  live debates (sources.news_feeds; source 'debate-news', dropped after news_days). writer.DEBATE_LONG: hook ->
+  what happened -> the tech underneath -> case for -> case against -> numbers -> what it means for you -> Thoma's
+  verdict + comment question. Research: ideas.debate_research (Wikipedia + news from several outlets incl. critics
+  and defenders); the articles become a "Sources:" list in the description. Short: SHORT_FORMATS['debate-teaser'].
+  Long videos rotate lanes: sources.long_rotation [debate, how, explain]. Owner's own yes/no question topics are
+  treated as debates.
+- Real photos: visuals photo / photos / headlines / quote (stage.js + visuals.SPEC). thoma/images.py: Wikimedia
+  Commons (+ Pexels with PEXELS_API_KEY, Openverse), license filter (images.licenses incl. CC BY-SA), no AI-made
+  images, Gemini vision check, cached in out/<id>/img, credits in the description. A photo scene with nothing
+  usable becomes bigtext. Gates: long debate/how >= 3 photos, debate needs headlines + compare, photos <= 40% of
+  visuals, quotes must be word for word in the research notes. The thumbnail uses the first real photo.
+- Owner's voice: voice.record (default [] = off; recommended [long]). Script -> Telegram reading sheet -> owner
+  replies with a voice note -> cleaned, pauses shortened, fluffed lines said twice cut (voice.cut_retakes,
+  tested on a simulated retake), aligned -> rendered. /ai ID uses the AI voice, /record ID asks again; after
+  record_wait_hours the AI voice reads it. A /fix that changes lines asks for a new recording. Description says
+  "voiced by the channel's host" instead of "AI voice".
+- First debate video (#? "Is the AI bubble about to pop?", idea 257) made 2026-10-30 as the test of the lane.
+- 2026-10-30 owner: "keep every video for 5 minutes maximum". Long formats now 560-700 words (~3:45-4:40), 4-6 chapters, re-hook every 45-60 s; render.py limit 5:00; pipeline.rewrite_to_length() rewrites older over-long scripts before rendering. Trade-off told to owner: no mid-roll ads under 8:00.

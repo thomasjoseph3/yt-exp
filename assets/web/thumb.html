@@ -16,6 +16,8 @@
         align-items: center; justify-content: center; color: var(--cyan); background: rgba(34,211,238,0.14);
         border: 3px solid rgba(34,211,238,0.6); box-shadow: 0 0 70px rgba(34,211,238,0.55); transform: rotate(-8deg); }
   #ic svg { width: 62%; height: 62%; stroke-width: 2.2; }
+  #ph { position: absolute; right: 0; top: 0; width: 66%; height: 100%; object-fit: cover; filter: saturate(1.15) contrast(1.05);
+        -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 38%); }
   #th { position: absolute; right: 30px; bottom: 10px; width: 330px; height: 429px; }
   #brand2 { position: absolute; left: 60px; bottom: 38px; display: flex; gap: 12px; align-items: center; font-weight: 800; font-size: 30px; color: #fff; }
   #brand2 .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 18px var(--amber); }
@@ -36,7 +38,14 @@ window.draw = async (d) => {
   let size = 150;
   inner.style.fontSize = size + "px";
   while (size > 50 && (inner.scrollHeight > 600 || inner.scrollWidth > 760)) { size -= 4; inner.style.fontSize = size + "px"; }
-  document.getElementById("ic").innerHTML = d.icon;
+  if (d.photo) {  // a real photo on the right, fading into the dark side where the words are
+    const p = document.createElement("img");
+    p.id = "ph";
+    p.src = d.photo;
+    document.getElementById("t").insertBefore(p, w);
+    await p.decode().catch(() => {});
+    document.getElementById("ic").style.display = "none";
+  } else document.getElementById("ic").innerHTML = d.icon;
   buildMascot(document.getElementById("th"), 330).update(0.3, 3, "wow", false, false, 0);
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 };

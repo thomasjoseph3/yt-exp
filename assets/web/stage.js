@@ -636,6 +636,456 @@ B.chat = (scene, v, box, R, start, end, portrait) => {
 };
 
 // ---------- Shorts cover: the first 0.4 s is a bold title card, so the frame feeds and Reels show is never empty ----------
+// ---------- how-it-works visuals (machines and real technology) ----------
+
+// The thing being explained, big in the middle: glowing icon, slowly turning dashed ring.
+function hero(name, size, color, parent, styles = {}) {
+  const wrap = h("div", "hero", parent, Object.assign({ width: size + "px", height: size + "px" }, styles));
+  h("div", "hero-glow", wrap, { background: `radial-gradient(circle, color-mix(in srgb, ${color} 30%, transparent) 0%, transparent 62%)` });
+  const ring = h("div", "hero-ring", wrap, { borderColor: `color-mix(in srgb, ${color} 55%, transparent)` });
+  const ic = h("div", "hero-icon", wrap, { color });
+  ic.innerHTML = name === "car-top" ? CAR_TOP : (D.icons[name] || D.icons["sparkles"] || "");
+  tickers.push((t) => { ring.style.transform = `rotate(${t * 14}deg)`; });
+  return wrap;
+}
+
+// A car seen from above, for scan views (Lucide only has side views).
+const CAR_TOP = `<svg viewBox="0 0 60 100" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round">
+  <rect x="9" y="4" width="42" height="92" rx="15" fill="color-mix(in srgb, currentColor 18%, #0d1430)"/>
+  <path d="M15 30 Q30 22 45 30 L42 44 Q30 40 18 44 Z" fill="color-mix(in srgb, currentColor 45%, transparent)"/>
+  <path d="M18 72 Q30 76 42 72 L44 82 Q30 88 16 82 Z" fill="color-mix(in srgb, currentColor 30%, transparent)"/>
+  <rect x="3" y="18" width="6" height="16" rx="3" fill="currentColor"/><rect x="51" y="18" width="6" height="16" rx="3" fill="currentColor"/>
+  <rect x="3" y="66" width="6" height="16" rx="3" fill="currentColor"/><rect x="51" y="66" width="6" height="16" rx="3" fill="currentColor"/>
+  <path d="M14 6 L22 6 M38 6 L46 6" stroke="#fde68a" stroke-width="3"/></svg>`;
+
+function caption2(scene, text, x, y, size, at, color = "var(--text)") {
+  const el = h("div", "pill tag", scene, { position: "absolute", left: x + "px", top: y + "px", fontSize: size + "px", color,
+    borderColor: color, transform: "translate(-50%, -50%)", whiteSpace: "nowrap" }, marked(text));
+  tl.fromTo(el, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, at);
+  return el;
+}
+
+function drawLine(svg, pts, color, at, width = 4, dur = 0.5) {
+  const d = pts.map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`).join(" ");
+  const len = pts.slice(1).reduce((s, p, i) => s + Math.hypot(p.x - pts[i].x, p.y - pts[i].y), 0);
+  const path = sv("path", { d, class: "edge", stroke: color, "stroke-dasharray": len }, svg);
+  path.style.strokeWidth = width;
+  tl.fromTo(path, { strokeDashoffset: len }, { strokeDashoffset: 0, duration: dur, ease: "power2.inOut" }, at);
+  return path;
+}
+
+B.parts = (scene, v, box, R, start, end, portrait) => {
+  const parts = (v.parts || []).slice(0, 6).map(p => typeof p === "string" ? { label: p } : p);
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const n = parts.length, color = col(0);
+  const size = portrait ? Math.min(box.w * 0.5, 480) : Math.min((box.h - top) * 0.56, 430);
+  const cx = box.w / 2, cy = portrait ? top + size * 0.58 : top + (box.h - top) / 2 - 20;
+  const obj = hero(v.icon || "box", size, color, scene, { left: cx - size / 2 + "px", top: cy - size / 2 + "px" });
+  popIn(obj, R[0] ?? start + 0.2, { duration: 0.6 });
+  if (v.object) caption2(scene, v.object, cx, portrait ? cy - size / 2 - 6 : cy + size / 2 + 30, portrait ? 34 : 30, (R[0] ?? start) + 0.3, "var(--amber)");
+  const svg = svgLayer(scene);
+  // part cards: two columns either side of the object (below it on a phone screen)
+  const cw = portrait ? box.w * 0.47 : Math.min(box.w * 0.29, 440), chh = portrait ? 150 : 128;
+  const rows = Math.ceil(n / 2), gap = portrait ? 26 : 34;
+  const colTop = portrait ? cy + size / 2 + 100 : cy - (rows * chh + (rows - 1) * gap) / 2;
+  const avail = portrait ? box.h - colTop : 0;
+  const rowH = portrait ? Math.min(chh + gap, avail / rows) : chh + gap;
+  parts.forEach((p, i) => {
+    const left = i % 2 === 0, row = Math.floor(i / 2);
+    const x = portrait ? (left ? 0 : box.w - cw) : (left ? 0 : box.w - cw);
+    const y = colTop + row * rowH;
+    const hgt = portrait ? rowH - gap : chh;
+    const card = h("div", "card", scene, { left: x + "px", top: y + "px", width: cw + "px", height: hgt + "px",
+      display: "flex", alignItems: "center", gap: "18px", padding: "0 22px" });
+    icon(p.icon || "circle-dot", hgt * 0.56, col(i + 1), card, { flexShrink: 0 });
+    const txt = h("div", "", card, { display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 });
+    const lab = h("div", "label", txt, { textAlign: "left" }, esc(p.label));
+    fit(lab, cw - hgt * 0.56 - 70, hgt * (p.sub ? 0.4 : 0.7), portrait ? 40 : 38, 18);
+    if (p.sub) { const s = h("div", "sub", txt, { textAlign: "left" }, esc(p.sub)); fit(s, cw - hgt * 0.56 - 70, hgt * 0.36, 26, 14); }
+    const at = R[i + 1] ?? start + 0.8 + i * 0.6;
+    slideIn(card, at, { x: left ? -50 : 50 });
+    // callout: a dot on the object's edge, an elbow line to the card (on a phone: down the gap between columns)
+    const ex = left ? x + cw + 6 : x - 6, ey = y + hgt / 2;
+    const c = css(COLORS[(i + 1) % COLORS.length]);
+    let ax, ay, route;
+    if (portrait) {
+      const mx = cx + (left ? -1 : 1) * (6 + row * 9);
+      ax = mx; ay = cy + size * 0.36;
+      route = [{ x: ax, y: ay }, { x: mx, y: ey }, { x: ex, y: ey }];
+    } else {
+      const ang = Math.atan2(ey - cy, ex - cx);
+      ax = cx + Math.cos(ang) * size * 0.36; ay = cy + Math.sin(ang) * size * 0.36;
+      route = [{ x: ax, y: ay }, { x: (ax + ex) / 2, y: ey }, { x: ex, y: ey }];
+    }
+    drawLine(svg, route, c, at + 0.15, 3.5, 0.45);
+    const dot = sv("circle", { cx: ax, cy: ay, r: 9, fill: c }, svg);
+    dot.style.filter = `drop-shadow(0 0 10px ${c})`;
+    tl.fromTo(dot, { opacity: 0 }, { opacity: 1, duration: 0.2 }, at);
+    tickers.push((t) => { if (t > at) dot.setAttribute("r", 8 + 3 * Math.abs(Math.sin((t - at) * 3))); });
+  });
+};
+
+B.scan = (scene, v, box, R, start, end, portrait) => {
+  const targets = (v.targets || []).slice(0, 5).map(x => typeof x === "string" ? { label: x } : x);
+  const mode = v.mode || "radar";
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const area = { x: 0, y: top, w: box.w, h: box.h - top };
+  const plane = h("div", "card plane", scene, { left: "0px", top: area.y + "px", width: area.w + "px", height: area.h + "px", overflow: "hidden" });
+  tl.fromTo(plane, { opacity: 0 }, { opacity: 1, duration: 0.4 }, start + 0.05);
+  const cam = mode === "camera";
+  const cx = area.w / 2, cy = area.y + area.h * (cam ? 0.8 : 0.52);
+  const maxR = cam ? area.h * 0.72 : Math.min(area.w, area.h) * 0.47;
+  // range rings, and the beam: a turning sweep (radar, lidar), a forward cone (camera), or pulses (signal)
+  const rings = [0.33, 0.66, 1].map(k => h("div", "range", plane, { left: cx - maxR * k + "px", top: cy - area.y - maxR * k + "px",
+    width: maxR * 2 * k + "px", height: maxR * 2 * k + "px" }));
+  tl.fromTo(rings, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.6, stagger: 0.1 }, start + 0.15);
+  const beam = h("div", "beam", plane, { left: cx - maxR + "px", top: cy - area.y - maxR + "px", width: maxR * 2 + "px", height: maxR * 2 + "px" });
+  const t0 = R[0] ?? start + 0.3;
+  const angleAt = (t) => cam ? -90 + Math.sin(t * 1.4) * 28 : (t * 140) % 360 - 90;  // degrees, 0 = right
+  if (mode === "signal") beam.style.display = "none";
+  else beam.style.background = cam
+    ? "conic-gradient(from -32deg at 50% 50%, transparent 0deg, color-mix(in srgb, var(--cyan) 28%, transparent) 10deg 54deg, transparent 64deg 360deg)"
+    : "conic-gradient(from 0deg at 50% 50%, transparent 0deg 300deg, color-mix(in srgb, var(--cyan) 10%, transparent) 330deg, color-mix(in srgb, var(--cyan) 45%, transparent) 360deg)";
+  tickers.push((t) => {
+    beam.style.opacity = t > t0 ? 1 : 0;
+    beam.style.transform = cam ? `rotate(${Math.sin(t * 1.2) * 10}deg)` : `rotate(${angleAt(t) + 90}deg)`;
+  });
+  if (mode === "signal") {
+    const waves = [0, 1, 2].map(() => h("div", "range wave", plane, { left: cx + "px", top: cy - area.y + "px" }));
+    tickers.push((t) => waves.forEach((w, k) => {
+      const p = t < t0 ? 0 : (((t - t0) * 0.6 + k / 3) % 1);
+      w.style.width = w.style.height = maxR * 2 * p + "px";
+      w.style.opacity = t < t0 ? 0 : (1 - p) * 0.9;
+    }));
+  }
+  // lidar: a cloud of points that light up as the sweep passes them
+  if (mode === "lidar") {
+    const pts = Array.from({ length: 70 }, (_, k) => {
+      const a = hash("p", k) * Math.PI * 2, r = maxR * (0.25 + 0.75 * hash("r", k));
+      return { a, el: h("div", "lpt", plane, { left: cx + Math.cos(a) * r + "px", top: cy - area.y + Math.sin(a) * r + "px" }) };
+    });
+    tickers.push((t) => pts.forEach(p => {
+      const sweep = ((angleAt(t) * Math.PI / 180) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+      const d = ((sweep - ((p.a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      p.el.style.opacity = t < t0 ? 0 : 0.15 + 0.85 * Math.max(0, 1 - d / 1.6);
+    }));
+  }
+  const cs = portrait ? 150 : 140;
+  const center = hero(v.icon || "car-top", cs, col(0), scene, { left: cx - cs / 2 + "px", top: cy - cs / 2 + "px" });
+  popIn(center, t0);
+  if (v.center) caption2(scene, v.center, cx, cy + cs / 2 + 26, portrait ? 30 : 26, t0 + 0.2, "var(--cyan)");
+  const n = targets.length;
+  targets.forEach((tg, i) => {
+    const a = cam ? (-150 + (120 * (i + 0.5)) / n) * Math.PI / 180 : -Math.PI / 2 + (2 * Math.PI * (i + 0.15)) / n + 0.35;
+    const r = maxR * (cam ? 0.55 + 0.3 * hash(tg.label) : 0.62 + 0.22 * hash(tg.label));
+    const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+    const s = portrait ? 96 : 84, at = R[i + 1] ?? start + 1 + i * 0.7;
+    const ic = icon(tg.icon || "circle-alert", s, col(i + 2), scene, { position: "absolute", left: x - s / 2 + "px", top: y - s / 2 + "px" });
+    tl.fromTo(ic, { opacity: 0, scale: 0.5 }, { opacity: 0.95, scale: 1, duration: 0.3 }, at - 0.35);
+    const bx = h("div", "bbox", scene, { left: x - s * 0.75 + "px", top: y - s * 0.75 + "px", width: s * 1.5 + "px", height: s * 1.5 + "px" });
+    tl.fromTo(bx, { opacity: 0, scale: 1.8 }, { opacity: 1, scale: 1, duration: 0.3, ease: "power3.out" }, at);
+    const text = tg.note ? `${tg.label} · ${tg.note}` : tg.label;
+    const tag = h("div", "btag", scene, { left: x - s * 0.75 + "px", top: y - s * 0.75 - (portrait ? 46 : 40) + "px", fontSize: portrait ? "28px" : "24px" }, esc(text));
+    tl.fromTo(tag, { opacity: 0, x: -10 }, { opacity: 1, x: 0, duration: 0.25 }, at + 0.15);
+  });
+};
+
+B.timeline = (scene, v, box, R, start, end, portrait) => {
+  const ev = (v.events || []).slice(0, 6).map(e => typeof e === "string" ? { label: e } : e);
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const n = ev.length, svg = svgLayer(scene);
+  const pts = ev.map((_, i) => portrait
+    ? { x: box.w * 0.12, y: top + 60 + (box.h - top - 120) * (n === 1 ? 0.5 : i / (n - 1)) }
+    : { x: box.w * 0.07 + box.w * 0.86 * (n === 1 ? 0.5 : i / (n - 1)), y: top + (box.h - top) / 2 });
+  const a = pts[0], b = pts[n - 1];
+  drawLine(svg, [portrait ? { x: a.x, y: a.y - 40 } : { x: a.x - 40, y: a.y }, portrait ? { x: b.x, y: b.y + 40 } : { x: b.x + 40, y: b.y }],
+    css("--panel-edge") || "#334", start + 0.15, 6, 0.6);
+  const times = ev.map((_, i) => R[i] ?? start + 0.6 + i * 0.8);
+  // a glowing marker travels the line, reaching each event as it is said
+  const mk = h("div", "marker", scene, {});
+  tickers.push((t) => {
+    if (t < times[0] - 0.2) { mk.style.opacity = 0; return; }
+    let k = 0;
+    while (k + 1 < n && t >= times[k + 1]) k++;
+    const p = k + 1 < n ? Math.min(Math.max((t - times[k]) / Math.max(times[k + 1] - times[k], 0.1) - 0.6, 0) / 0.4, 1) : 0;
+    const e = p * p * (3 - 2 * p), A = pts[k], B2 = pts[Math.min(k + 1, n - 1)];
+    mk.style.opacity = 1;
+    mk.style.left = A.x + (B2.x - A.x) * e + "px";
+    mk.style.top = A.y + (B2.y - A.y) * e + "px";
+  });
+  ev.forEach((e, i) => {
+    const p = pts[i], up = !portrait && i % 2 === 0, hi = v.now === i;
+    const dot = h("div", "tdot", scene, { left: p.x + "px", top: p.y + "px", borderColor: hi ? "var(--amber)" : col(i) });
+    popIn(dot, times[i], { duration: 0.35 });
+    const cw = portrait ? box.w * 0.78 : Math.min(box.w * 0.86 / Math.max(n, 2) * 1.6, 380), chh = portrait ? Math.min(150, (box.h - top) / n - 24) : 170;
+    const x = portrait ? p.x + 60 : Math.min(Math.max(p.x - cw / 2, 0), box.w - cw), y = portrait ? p.y - chh / 2 : (up ? p.y - chh - 50 : p.y + 50);
+    const card = h("div", "card", scene, { left: x + "px", top: y + "px", width: cw + "px", height: chh + "px", padding: "14px 22px",
+      display: "flex", flexDirection: "column", justifyContent: "center", gap: "6px", borderColor: hi ? "var(--amber)" : "" });
+    const when = h("div", "label", card, { color: hi ? "var(--amber)" : col(i), fontSize: portrait ? "38px" : "36px", textAlign: portrait ? "left" : "center" }, esc(e.when || ""));
+    const lab = h("div", "label", card, { textAlign: portrait ? "left" : "center" }, esc(e.label));
+    fit(lab, cw - 44, chh * 0.5, portrait ? 36 : 30, 16);
+    if (!e.when) when.remove();
+    tl.fromTo(card, { opacity: 0, y: portrait ? 0 : (up ? 30 : -30), x: portrait ? -30 : 0 }, { opacity: 1, y: 0, x: 0, duration: 0.4, ease: "power3.out" }, times[i] + 0.1);
+    if (!portrait) drawLine(svg, [{ x: p.x, y: up ? p.y - 20 : p.y + 20 }, { x: p.x, y: up ? p.y - 50 : p.y + 50 }], col(i), times[i] + 0.05, 3, 0.2);
+  });
+};
+
+B.bars = (scene, v, box, R, start, end, portrait) => {
+  const items = (v.items || []).slice(0, 6).map(x => typeof x === "string" ? { label: x, value: 0 } : x);
+  const top = heading(scene, v.heading, box, start + 0.1, 52);
+  const n = items.length, max = Math.max(...items.map(x => Math.abs(+x.value || 0)), 1);
+  const rowH = Math.min(portrait ? 190 : 140, (box.h - top - 20) / n);
+  const y0 = top + (box.h - top - rowH * n) / 2;
+  const labW = portrait ? 300 : 340, valW = portrait ? 230 : 260;
+  items.forEach((it, i) => {
+    const hi = v.highlight === i, c = hi ? "var(--amber)" : col(i);
+    const row = h("div", "", scene, { position: "absolute", left: 0, width: box.w + "px", top: y0 + i * rowH + "px", height: rowH * 0.8 + "px",
+      display: "flex", alignItems: "center", gap: "22px" });
+    const lab = h("div", "label", row, { width: labW + "px", flexShrink: 0, textAlign: "right" }, esc(it.label));
+    fit(lab, labW, rowH * 0.75, Math.min(rowH * 0.36, 46), 18);
+    const track = h("div", "bar-track", row, { height: "70%" });
+    const bar = h("div", "bar", track, { background: `linear-gradient(90deg, color-mix(in srgb, ${c} 70%, #0d1430), ${c})`,
+      boxShadow: hi ? "0 0 40px rgba(251,191,36,0.6)" : "none" });
+    const val = h("div", "label", row, { width: valW + "px", flexShrink: 0, textAlign: "left", color: c, fontSize: Math.min(rowH * 0.36, 48) + "px" }, "0");
+    const at = R[i] ?? start + 0.5 + i * 0.5;
+    tl.fromTo(row, { opacity: 0, x: -30 }, { opacity: 1, x: 0, duration: 0.3 }, at);
+    tl.fromTo(bar, { width: "0%" }, { width: Math.max(1.5, Math.abs(+it.value || 0) / max * 100) + "%", duration: 0.9, ease: "power2.out" }, at + 0.1);
+    const target = +it.value || 0, dec = String(it.value).includes(".") ? (String(it.value).split(".")[1] || "").length : 0, o = { n: 0 };
+    const unit = it.unit || v.unit || "";
+    tl.to(o, { n: target, duration: 0.9, ease: "power2.out", onUpdate: () => {
+      val.textContent = o.n.toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec }) + (unit ? " " + unit : "");
+    } }, at + 0.1);
+    if (it.note) { const s = h("div", "sub", scene, { position: "absolute", left: labW + 22 + "px", top: y0 + i * rowH + rowH * 0.8 + "px", fontSize: "22px" }, esc(it.note));
+      tl.fromTo(s, { opacity: 0 }, { opacity: 1, duration: 0.3 }, at + 0.8); }
+  });
+};
+
+B.zoom = (scene, v, box, R, start, end, portrait) => {
+  const levels = (v.levels || []).slice(0, 4).map(x => typeof x === "string" ? { label: x } : x);
+  const n = levels.length;
+  const size = portrait ? Math.min(box.w * 0.6, 560) : Math.min(box.h * 0.6, 520);
+  const cx = box.w / 2, cy = box.h * 0.46;
+  const crumbs = h("div", "crumbs", scene, { fontSize: portrait ? "30px" : "28px" });
+  const times = levels.map((_, i) => R[i] ?? start + 0.3 + i * 1.6);
+  levels.forEach((lv, i) => {
+    const g = h("div", "", scene, { position: "absolute", left: 0, top: 0, width: box.w + "px", height: box.h + "px" });
+    const hr = hero(lv.icon || "box", size, col(i), g, { left: cx - size / 2 + "px", top: cy - size / 2 + "px" });
+    const lab = h("div", "big", g, { top: cy + size / 2 + 20 + "px" }, marked(lv.label));
+    fit(lab, box.w * 0.9, 120, portrait ? 72 : 64, 28);
+    if (lv.sub) { const s = h("div", "sub", g, { position: "absolute", left: "5%", right: "5%", top: cy + size / 2 + 120 + "px" }, esc(lv.sub)); fit(s, box.w * 0.9, 90, 36, 18); }
+    // each level grows out of the middle of the one before it, which flies past the camera
+    const at = times[i];
+    tl.fromTo(g, { opacity: 0, scale: i ? 0.12 : 0.7 }, { opacity: 1, scale: 1, duration: i ? 0.75 : 0.5, ease: "power3.out", transformOrigin: `${cx}px ${cy}px` }, i ? at - 0.15 : at);
+    if (i + 1 < n) tl.to(g, { opacity: 0, scale: 5, duration: 0.6, ease: "power2.in", transformOrigin: `${cx}px ${cy}px` }, times[i + 1] - 0.3);
+    tl.fromTo(hr, { rotation: -8 }, { rotation: 0, duration: 0.8 }, at);
+    const crumb = h("span", "", crumbs, { color: i === n - 1 ? "var(--amber)" : "var(--muted)" }, (i ? " › " : "") + esc(String(lv.label).replace(/\*/g, "")));
+    tl.fromTo(crumb, { opacity: 0 }, { opacity: 1, duration: 0.3 }, at + 0.2);
+  });
+};
+
+B.layers = (scene, v, box, R, start, end, portrait) => {
+  const items = (v.items || []).slice(0, 5).map(x => typeof x === "string" ? { label: x } : x);
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const n = items.length, svg = svgLayer(scene);
+  const sw = portrait ? box.w * 0.44 : box.w * 0.34, depth = sw * 0.38;    // slab width, isometric depth
+  const thick = portrait ? 40 : 34, gap = Math.min((box.h - top - depth - 60) / n, portrait ? 200 : 150);
+  const ox = portrait ? box.w * 0.06 : box.w * 0.1, oy = top + (box.h - top - (gap * (n - 1) + depth + thick)) / 2;
+  items.forEach((it, i) => {
+    const y = oy + i * gap, c = css(COLORS[i % COLORS.length]);
+    // top face (rhombus) + front edge, drawn in SVG
+    const g = sv("g", {}, svg);
+    const T = [[ox, y + depth / 2], [ox + sw / 2, y], [ox + sw, y + depth / 2], [ox + sw / 2, y + depth]];
+    sv("path", { d: `M${T.map(p => p.join(",")).join(" L")} Z`, fill: `color-mix(in srgb, ${c} 32%, #0d1430)`, stroke: c, "stroke-width": 3 }, g);
+    sv("path", { d: `M${ox},${y + depth / 2} L${ox + sw / 2},${y + depth} L${ox + sw / 2},${y + depth + thick} L${ox},${y + depth / 2 + thick} Z`,
+      fill: `color-mix(in srgb, ${c} 55%, #0d1430)`, stroke: c, "stroke-width": 2 }, g);
+    sv("path", { d: `M${ox + sw},${y + depth / 2} L${ox + sw / 2},${y + depth} L${ox + sw / 2},${y + depth + thick} L${ox + sw},${y + depth / 2 + thick} Z`,
+      fill: `color-mix(in srgb, ${c} 40%, #0d1430)`, stroke: c, "stroke-width": 2 }, g);
+    const at = R[i] ?? start + 0.4 + i * 0.6;
+    tl.fromTo(g, { opacity: 0, y: -120 }, { opacity: 1, y: 0, duration: 0.55, ease: "bounce.out" }, at);
+    // label card on the right with a leader line from the slab's edge
+    const lx = ox + sw + (portrait ? 40 : 110), ly = y + depth / 2 - 10;
+    const cw = box.w - lx - 10, chh = Math.min(gap - 14, portrait ? 150 : 120);
+    const card = h("div", "card", scene, { left: lx + "px", top: ly - chh / 2 + "px", width: cw + "px", height: chh + "px",
+      display: "flex", alignItems: "center", gap: "16px", padding: "0 22px", borderColor: `color-mix(in srgb, ${c} 50%, transparent)` });
+    if (it.icon) icon(it.icon, chh * 0.6, c, card, { flexShrink: 0 });
+    const txt = h("div", "", card, { display: "flex", flexDirection: "column", gap: "4px", minWidth: 0 });
+    const lab = h("div", "label", txt, { textAlign: "left" }, esc(it.label));
+    fit(lab, cw - (it.icon ? chh * 0.6 + 60 : 44), chh * (it.sub ? 0.45 : 0.8), portrait ? 40 : 38, 16);
+    if (it.sub) { const s = h("div", "sub", txt, { textAlign: "left" }, esc(it.sub)); fit(s, cw - (it.icon ? chh * 0.6 + 60 : 44), chh * 0.4, 26, 14); }
+    slideIn(card, at + 0.2, { x: 40 });
+    drawLine(svg, [{ x: ox + sw + 6, y: y + depth / 2 }, { x: lx - 4, y: ly }], c, at + 0.25, 3, 0.3);
+  });
+};
+
+B.path = (scene, v, box, R, start, end, portrait) => {
+  const stops = [v.from, ...(v.stops || []).slice(0, 3), v.to].filter(Boolean).map(String);
+  const top = heading(scene, v.heading, box, start + 0.1, 50);
+  const noteH = v.note ? (portrait ? 110 : 80) : 0;
+  const area = { x: 0, y: top, w: box.w, h: box.h - top - noteH };
+  const map = h("div", "card plane", scene, { left: "0px", top: area.y + "px", width: area.w + "px", height: area.h + "px", overflow: "hidden" });
+  tl.fromTo(map, { opacity: 0 }, { opacity: 1, duration: 0.4 }, start + 0.05);
+  for (let k = 0; k < 14; k++) {  // faint city blocks so it reads as a map
+    const bw = 60 + hash("bw", k) * 160, bh = 50 + hash("bh", k) * 120;
+    h("div", "block", map, { left: hash("bx", k) * (area.w - bw) + "px", top: hash("by", k) * (area.h - bh) + "px", width: bw + "px", height: bh + "px" });
+  }
+  const svg = svgLayer(scene);
+  const n = stops.length;
+  const pts = stops.map((_, i) => {
+    const f = n === 1 ? 0.5 : i / (n - 1);
+    return portrait
+      ? { x: area.w * (0.2 + 0.6 * (i % 2 ? 0.85 : 0.15) * (0.6 + 0.4 * hash(stops[i]))), y: area.y + area.h * (0.88 - 0.76 * f) }
+      : { x: area.w * (0.1 + 0.8 * f), y: area.y + area.h * (0.75 - 0.5 * f + (i % 2 ? -0.12 : 0.12) * (i && i < n - 1 ? 1 : 0)) };
+  });
+  // smooth route through the stops, drawn while the vehicle drives it
+  const dense = [];
+  for (let i = 0; i + 1 < n; i++) for (let s = 0; s < 20; s++) {
+    const f = s / 20, A = pts[i], B2 = pts[i + 1];
+    const e = f * f * (3 - 2 * f);
+    dense.push({ x: A.x + (B2.x - A.x) * f, y: A.y + (B2.y - A.y) * e, seg: i });
+  }
+  dense.push({ ...pts[n - 1], seg: n - 1 });
+  const times = stops.map((_, i) => R[i] ?? start + 0.4 + i * 1.2);
+  const route = sv("path", { d: dense.map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`).join(" "), class: "edge", stroke: css("--cyan") }, svg);
+  route.style.strokeWidth = 8;
+  route.style.strokeDasharray = "18 14";
+  const veh = icon(v.icon || "car", portrait ? 96 : 84, "var(--amber)", scene, { position: "absolute", opacity: 0, background: "#1a1300", borderRadius: "50%" });
+  const vs = portrait ? 96 : 84;
+  tickers.push((t) => {
+    let k = 0;
+    while (k + 1 < n && t >= times[k + 1]) k++;
+    const seg = k + 1 < n ? Math.min(Math.max((t - times[k]) / Math.max(times[k + 1] - times[k], 0.2), 0), 1) : 0;
+    const idx = Math.min(Math.round((k + seg) * 20), dense.length - 1);
+    route.style.opacity = t > times[0] ? 1 : 0;
+    route.style.strokeDashoffset = -t * 40;
+    route.setAttribute("d", dense.slice(0, Math.max(idx + 1, 2)).map((p, i) => `${i ? "L" : "M"}${p.x},${p.y}`).join(" "));
+    const p = dense[idx];
+    veh.style.opacity = t > times[0] ? 1 : 0;
+    veh.style.left = p.x - vs / 2 + "px";
+    veh.style.top = p.y - vs / 2 + "px";
+  });
+  stops.forEach((s, i) => {
+    const p = pts[i], c = i === n - 1 ? "var(--green)" : i === 0 ? "var(--cyan)" : "var(--violet)";
+    const pin = h("div", "tdot", scene, { left: p.x + "px", top: p.y + "px", borderColor: c });
+    popIn(pin, times[i] - 0.1, { duration: 0.35 });
+    caption2(scene, s, Math.min(Math.max(p.x, 140), box.w - 140), p.y + (portrait ? 70 : 62), portrait ? 32 : 28, times[i], c);
+  });
+  if (v.note) {
+    const nt = h("div", "sub", scene, { position: "absolute", left: "4%", right: "4%", top: box.h - noteH + 16 + "px" }, marked(v.note));
+    fit(nt, box.w * 0.92, noteH - 20, 38, 18);
+    slideIn(nt, (times[n - 1] ?? end - 1.5) + 0.3, { y: 20 });
+  }
+};
+
+// ---------- real photos and the news (thoma/images.py finds, checks and credits the photos) ----------
+const waits = [];  // photos must finish loading before the first screenshot
+function img(src, parent, styles = {}) {
+  const e = h("img", "", parent, Object.assign({ position: "absolute", display: "block" }, styles));
+  e.src = src;
+  waits.push(e.decode().catch(() => console.error("photo failed to load", src)));
+  return e;
+}
+// A photo in a rounded frame. Close to the frame's shape: it fills it; otherwise the whole photo sits on a
+// blurred copy of itself (the news-channel look), so nothing important is cropped away.
+function photoFrame(parent, src, iw, ih, x, y, w, hh) {
+  const f = h("div", "photo", parent, { left: x + "px", top: y + "px", width: w + "px", height: hh + "px" });
+  const r = (iw || 16) / (ih || 9), fr = w / hh;
+  const fill = Math.max(r / fr, fr / r) < 1.45;
+  if (!fill) img(src, f, { left: "-40px", top: "-40px", width: w + 80 + "px", height: hh + 80 + "px", objectFit: "cover", filter: "blur(26px) brightness(0.45)" });
+  const p = img(src, f, { left: 0, top: 0, width: "100%", height: "100%", objectFit: fill ? "cover" : "contain" });
+  return [f, p];
+}
+function kenBurns(p, key, start, end) {  // slow push in or out with a drift, different for every photo
+  const k = hash(key, 7), inward = k > 0.5, dx = (hash(key, 9) - 0.5) * 6;
+  tl.fromTo(p, { scale: inward ? 1.02 : 1.16, xPercent: inward ? -dx : dx },
+    { scale: inward ? 1.16 : 1.02, xPercent: inward ? dx : -dx, duration: Math.max(end - start + 0.5, 1), ease: "none" }, start - 0.3);
+}
+function credit(parent, text, size) {
+  if (text) h("div", "credit", parent, { fontSize: size + "px" }, "Photo: " + esc(text));
+}
+
+B.photo = (scene, v, box, R, start, end, portrait) => {
+  const [f, p] = photoFrame(scene, v.src, v.iw, v.ih, 0, 0, box.w, box.h);
+  kenBurns(p, v.src || "", start, end);
+  tl.fromTo(f, { opacity: 0, scale: 1.04 }, { opacity: 1, scale: 1, duration: 0.5, ease: "power2.out" }, start);
+  credit(f, v.credit, portrait ? 18 : 16);
+  if (!v.caption && !v.tag) return;
+  h("div", "shade", f);
+  const bar = h("div", "lower", f, { left: portrait ? "36px" : "48px", right: portrait ? "36px" : "48px", bottom: portrait ? "46px" : "52px" });
+  if (v.tag) h("div", "tag", bar, { fontSize: (portrait ? 30 : 26) + "px" }, esc(v.tag));
+  if (v.caption) {
+    const c = h("div", "cap", bar, {}, marked(v.caption));
+    fit(c, box.w - 140, portrait ? 220 : 150, portrait ? 60 : 56, 26);
+  }
+  tl.fromTo(bar, { opacity: 0, x: -70 }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, R[0] ?? start + 0.6);
+};
+
+B.photos = (scene, v, box, R, start, end, portrait) => {
+  const items = (v.items || []).slice(0, 3);
+  const top = heading(scene, v.heading, box, start + 0.1);
+  const n = Math.max(items.length, 1), gap = 34, labH = portrait ? 90 : 80;
+  const w = portrait ? box.w * 0.92 : (box.w - gap * (n - 1)) / n;
+  const hh = portrait ? (box.h - top - gap * (n - 1)) / n - labH : box.h - top - labH - 20;
+  items.forEach((it, i) => {
+    const x = portrait ? (box.w - w) / 2 : i * (w + gap), y = portrait ? top + i * (hh + labH + gap) : top + 10;
+    const holder = h("div", "", scene, { position: "absolute", left: x + "px", top: y + "px", width: w + "px", height: hh + labH + "px" });
+    if (it.src) {
+      const [, p] = photoFrame(holder, it.src, it.iw, it.ih, 0, 0, w, hh);
+      kenBurns(p, it.src, start, end);
+    } else {
+      const c = h("div", "card", holder, { left: 0, top: 0, width: w + "px", height: hh + "px", display: "flex", alignItems: "center", justifyContent: "center" });
+      icon(it.icon || "image", Math.min(w, hh) * 0.4, col(i), c);
+    }
+    const lab = h("div", "label", holder, { position: "absolute", left: 0, right: 0, top: hh + 14 + "px" }, marked(it.label || ""));
+    fit(lab, w, labH - 14, portrait ? 44 : 40, 20);
+    popIn(holder, R[i] ?? start + 0.3 + i * 0.8, { duration: 0.45 });
+  });
+};
+
+B.headlines = (scene, v, box, R, start, end, portrait) => {
+  const items = (v.items || []).slice(0, 3);
+  const top = heading(scene, v.heading, box, start + 0.1);
+  const n = Math.max(items.length, 1), gap = portrait ? 44 : 30;
+  const w = Math.min(box.w * (portrait ? 0.94 : 0.8), 1200);
+  const maxH = Math.min(portrait ? 330 : 250, (box.h - top - gap * (n - 1)) / n);
+  // cards take their text's height, the stack is centred in the space under the heading
+  const col_ = h("div", "", scene, { position: "absolute", left: 0, right: 0, top: top + "px", bottom: 0,
+    display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: gap + "px" });
+  items.forEach((it, i) => {
+    const tilt = [-1.6, 1.2, -0.7][i];
+    const card = h("div", "news", col_, { position: "relative", width: w + "px", maxHeight: maxH + "px" });
+    const dx = (i - (n - 1) / 2) * 24;
+    const meta = h("div", "meta", card, { fontSize: (portrait ? 30 : 24) + "px" });
+    h("span", "src", meta, { color: `var(${["--pink", "--blue", "--violet"][i]})` }, esc(it.source || ""));
+    if (it.date) h("span", "date", meta, {}, esc(it.date));
+    const t = h("div", "text", card, {}, marked(it.text || ""));
+    fit(t, w - 80, maxH - (portrait ? 96 : 80), portrait ? 54 : 46, 20);
+    tl.fromTo(card, { opacity: 0, x: dx, y: 60, rotation: tilt * 4, scale: 0.9 },
+      { opacity: 1, x: dx, y: 0, rotation: tilt, scale: 1, duration: 0.5, ease: "back.out(1.4)" }, R[i] ?? start + 0.3 + i * 0.9);
+  });
+};
+
+B.quote = (scene, v, box, R, start, end, portrait) => {
+  const face = v.src ? Math.min(portrait ? box.w * 0.5 : box.h * 0.5, 420) : 0;
+  let x0 = 40;
+  if (face) {
+    const fx = portrait ? (box.w - face) / 2 : 40, fy = portrait ? 30 : (box.h - face) / 2 - 30;
+    const ring = h("div", "face", scene, { left: fx + "px", top: fy + "px", width: face + "px", height: face + "px" });
+    img(v.src, ring, { left: 0, top: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 25%" });
+    popIn(ring, start + 0.1);
+    x0 = portrait ? 40 : face + 110;
+  }
+  const qy = portrait && face ? face + 80 : box.h * 0.14;
+  const mark = h("div", "qmark", scene, { left: x0 - 10 + "px", top: qy - 70 + "px", fontSize: (portrait ? 220 : 240) + "px" }, "“");
+  popIn(mark, start + 0.15);
+  const t = h("div", "qtext", scene, { left: x0 + "px", top: qy + 60 + "px", width: box.w - x0 - 40 + "px" });
+  t.innerHTML = marked(v.text);
+  const size = fit(t, box.w - x0 - 40, box.h - qy - 220, portrait ? 64 : 60, 26);
+  wordsIn(t, words(v.text), R[0] ?? start + 0.4, size);
+  const who = h("div", "qwho", scene, { left: x0 + "px", top: qy + 60 + t.scrollHeight + 30 + "px", fontSize: (portrait ? 38 : 34) + "px" },
+    "— " + esc(v.who || "") + (v.when ? `<span>, ${esc(v.when)}</span>` : ""));
+  slideIn(who, R[1] ?? start + 1.2, { x: -40 });
+};
+
 function buildCover(frame, W, H) {
   const c = h("div", "", frame, { position: "absolute", inset: 0, zIndex: 9, background: "radial-gradient(ellipse at 30% 25%, #1b2858 0%, var(--bg) 70%)" });
   c.id = "cover";
@@ -685,6 +1135,11 @@ window.load = async (data) => {
 
   const stage = h("div", "", frame, { left: L.stage.x + "px", top: L.stage.y + "px", width: L.stage.w + "px", height: L.stage.h + "px" });
   stage.id = "stage";
+  const grain = h("div", "", frame); grain.id = "grain";
+  tickers.push((t) => {  // a new grain pattern every frame, like film
+    const f = Math.floor(t * D.fps);
+    grain.style.transform = `translate(${(hash("gx", f) - 0.5) * 100}px, ${(hash("gy", f) - 0.5) * 100}px)`;
+  });
   const flash = h("div", "", frame, { position: "absolute", inset: 0, background: "#e0f2fe", opacity: 0, zIndex: 4, pointerEvents: "none", mixBlendMode: "screen" });
   const flashes = [];
   tickers.push((t) => {
@@ -731,6 +1186,13 @@ window.load = async (data) => {
   // he flies in on his spear from off-screen right
   tl.fromTo(th, { x: 700, y: -160, rotation: -14 }, { x: 0, y: 0, rotation: 0, duration: 0.9, ease: "power3.out" }, 0.05);
   cuts = D.blocks.slice(1).map(b => b.start);
+  // chapter cards: "02 · How it sees" slides in when a new chapter starts
+  (D.chapters || []).slice(1).forEach(([t, name], k) => {
+    const card = h("div", "chapcard", frame, { left: L.stage.x + "px", top: (L.stage.y + L.stage.h - 30) + "px" },
+      `<span class="num">${String(k + 1).padStart(2, "0")}</span><span class="name"><span class="kick">CHAPTER ${k + 1}</span>${esc(name)}</span>`);
+    tl.fromTo(card, { opacity: 0, x: -80 }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, t + 0.2);
+    tl.to(card, { opacity: 0, x: -50, duration: 0.4, ease: "power2.in" }, t + 3.4);
+  });
 
   if (D.cover) buildCover(frame, W, H);
 
@@ -739,6 +1201,7 @@ window.load = async (data) => {
     capEl.id = "captions";
   }
   tl.add(() => {}, D.duration);
+  await Promise.all(waits);
   return true;
 };
 

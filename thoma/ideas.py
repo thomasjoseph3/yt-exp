@@ -42,7 +42,20 @@ of well-known tools with nothing new. Reply as JSON:
 {"items":[{"ref":"<ref>","fit":true,"topic":"<Tool name>: what it does, e.g. 'Gamma: AI that makes slide decks'",
 "angle":"the everyday problem it solves"}]}"""
 
+DEBATE_TRIAGE = """You pick stories for "Thoma Explains" debate videos: 4-5 minute videos on the tech
+fights everyone is arguing about, explained so a 10th-standard student can judge for themselves. You get
+headlines and summaries from tech news sites. fit=true only for a live public debate about technology that
+ordinary people care about and that will still matter in a month: AI and jobs, AI money and bubbles, big tech
+power and lawsuits, privacy and data, AI copyright and artists, safety of self-driving cars and robots,
+deepfakes, kids and social media, chips and energy, a company's controversial launch or claim. fit=false for
+partisan politics and elections, war, crime stories about private people, health or medical claims, celebrity
+gossip, deals and funding rounds with no public debate, product reviews and minor updates.
+Reply as JSON:
+{"items":[{"ref":"<ref>","fit":true,"topic":"the debate as a plain yes/no question people search, e.g. 'Is the AI bubble about to pop?'",
+"angle":"the sharpest real moment of the story, to open the video with"}]}"""
+
 TOOL_SOURCES = ("AI tools", "tool-evergreen")
+DEBATE_SOURCES = ("debate", "debate-news")
 
 
 def is_tool(idea) -> bool:
@@ -72,6 +85,23 @@ def _tools_feed(url: str) -> list[dict]:
             "title": e.findtext("a:title", namespaces=NS),
             "text": " ".join(tagline.split()) + (f"\nwebsite: {link.group(1)}" if link else ""),
         })
+    return items
+
+
+def _news_feed(url: str) -> list[dict]:
+    """A news site's RSS/Atom feed: headline + summary per story."""
+    import html as htmlmod
+    r = httpx.get(url, timeout=30, headers=UA, follow_redirects=True)
+    r.raise_for_status()
+    items = []
+    for block in re.findall(r"(?is)<(?:item|entry)\b.*?</(?:item|entry)>", r.text)[:25]:
+        def tag(name):
+            m = re.search(rf"(?is)<{name}\b[^>]*>(.*?)</{name}>", block)
+            return " ".join(htmlmod.unescape(re.sub(r"<!\[CDATA\[|\]\]>|<[^>]+>", " ", m.group(1))).split()) if m else ""
+        link = tag("link") or (re.search(r'<link[^>]+href="([^"]+)"', block) or [None, ""])[1]
+        if tag("title") and link:
+            items.append({"ref": "news:" + link[:300], "title": tag("title"),
+                          "text": (tag("description") or tag("summary") or tag("content"))[:600] + f"\nlink: {link}"})
     return items
 
 
@@ -182,7 +212,7 @@ def transcript(idea) -> str:
     return text
 
 
-def top_explainers(topic: str, n: int = 3) -> list[dict]:
+def top_explainers(topic: str, n: int = 5) -> list[dict]:
     """The most-watched YouTube videos on a topic, with transcripts: how proven explainers teach it.
     Used to learn structure and what kind of example makes it click; never to copy (writer.gates)."""
     import json
@@ -216,11 +246,153 @@ def top_explainers(topic: str, n: int = 3) -> list[dict]:
         except Exception:
             continue
         v["transcript"] = " ".join(s.text for s in fetched)
+        # the first minute with timestamps: how a proven video places its hook
+        v["opening"] = " ".join(f"[{int(s.start) // 60}:{int(s.start) % 60:02}] {s.text}"
+                                for s in fetched if s.start < 60)
         out.append(v)
         if len(out) == n:
             break
     log.info("top explainers for %r: %s", topic[:60], [f"{v['title']} ({v['views']:,} views)" for v in out])
     return out
+
+
+UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36",
+      "Accept-Language": "en"}
+
+
+def _page_text(url: str, limit: int = 5000) -> str:
+    import html as htmlmod
+    try:
+        r = httpx.get(url, timeout=25, follow_redirects=True, headers=UA)
+        page = re.sub(r"(?is)<(script|style|svg|noscript|nav|header|footer|aside|form)[^>]*>.*?</\1>", " ", r.text)
+        paras = re.findall(r"(?is)<p[^>]*>(.*?)</p>", page) or [page]
+        text = " ".join(htmlmod.unescape(re.sub(r"<[^>]+>", " ", p)) for p in paras)
+        return " ".join(text.split())[:limit]
+    except Exception as e:
+        log.info("could not read %s: %s", url, str(e)[:100])
+        return ""
+
+
+def news_articles(query: str, n: int = 4, seen: set | None = None) -> list[dict]:
+    """Recent news articles on a query (Bing News RSS), with their readable text."""
+    import html as htmlmod
+    from email.utils import parsedate_to_datetime
+    from urllib.parse import parse_qs, urlparse
+    seen = seen if seen is not None else set()
+    out = []
+    try:
+        r = httpx.get("https://www.bing.com/news/search", params={"q": query, "format": "rss", "setlang": "en", "mkt": "en-US"},
+                      headers=UA, timeout=30)
+        items = re.findall(r"<item>(.*?)</item>", r.text, re.S)
+    except Exception as e:
+        log.info("news search for %r failed: %s", query, e)
+        return []
+    for item in items:
+        if len(out) == n:
+            break
+        link = htmlmod.unescape(re.search(r"<link>(.*?)</link>", item).group(1))
+        link = parse_qs(urlparse(link).query).get("url", [link])[0]
+        title = htmlmod.unescape(re.search(r"<title>(.*?)</title>", item).group(1))
+        if link in seen or title.lower() in seen:
+            continue
+        seen |= {link, title.lower()}
+        date = (re.search(r"<pubDate>(.*?)</pubDate>", item) or [None, ""])[1]
+        try:
+            date = f"{parsedate_to_datetime(date):%b %d, %Y}"
+        except (TypeError, ValueError):
+            date = date[:16]
+        outlet = (re.search(r"<News:Source>(.*?)</News:Source>", item) or [None, ""])[1] or urlparse(link).netloc.removeprefix("www.")
+        text = _page_text(link, 3500)
+        if len(text) > 400:
+            out.append({"outlet": htmlmod.unescape(outlet), "title": title, "date": date, "url": link, "text": text})
+    return out
+
+
+def _wikipedia(query: str, n: int = 2, limit: int = 7000) -> list[str]:
+    parts = []
+    try:
+        r = httpx.get("https://en.wikipedia.org/w/api.php", headers=UA, timeout=30, params={
+            "action": "query", "list": "search", "srsearch": query, "srlimit": n, "format": "json"})
+        for hit in r.json()["query"]["search"]:
+            r = httpx.get("https://en.wikipedia.org/w/api.php", headers=UA, timeout=30, params={
+                "action": "query", "prop": "extracts", "explaintext": 1, "titles": hit["title"], "format": "json"})
+            text = next(iter(r.json()["query"]["pages"].values())).get("extract", "")
+            text = re.split(r"\n== (See also|References|External links|Notes) ==", text)[0]
+            parts.append(f"Wikipedia, '{hit['title']}':\n{' '.join(text.split())[:limit]}")
+    except Exception as e:
+        log.info("wikipedia search failed: %s", e)
+    return parts
+
+
+def _article(a: dict) -> str:
+    return f"News article '{a['title']}' ({a['outlet']}, {a['date']}):\n{a['text']}"
+
+
+def web_research(topic: str) -> str:
+    """Facts from the open web for 'how it works' topics, which the source channels don't cover:
+    Wikipedia for how the thing works, recent news articles for what is new (dated)."""
+    query = re.sub(r"https?://\S+|[?!]", "", topic).strip()
+    parts = _wikipedia(query) + [_article(a) for a in news_articles(query)]
+    log.info("web research for %r: %d sources", topic[:60], len(parts))
+    return "\n\n".join(parts)
+
+
+def debate_research(topic: str, angle: str = "") -> tuple[str, list[dict]]:
+    """Both sides of a tech controversy: background (Wikipedia), what happened (recent news), the case
+    made by critics and the answer from defenders. Returns the material and the articles used, which
+    become the video's 'Sources' list."""
+    query = re.sub(r"https?://\S+|[?!]", "", topic).strip()
+    query = re.sub(r"^(is|are|does|do|did|will|would|can|could|should)\s+", "", query, flags=re.I)
+    seen: set = set()
+    articles = news_articles(query, 5, seen)
+    for extra in (f"{query} critics warn", f"{query} defenders say", f"{query} experts data"):
+        articles += news_articles(extra, 2, seen)
+    if angle:
+        articles += news_articles(angle[:80], 2, seen)
+    parts = _wikipedia(query, 2, 5000) + [_article(a) for a in articles]
+    log.info("debate research for %r: %d articles", topic[:60], len(articles))
+    return "\n\n".join(parts), [{k: a[k] for k in ("outlet", "title", "date", "url")} for a in articles]
+
+
+def seed_how_it_works() -> int:
+    """'How does X really work?' topics (assets/how_it_works.txt): researched on the open web, each made
+    as a long video plus a Short that points to it. They come before the evergreen backlog."""
+    added = 0
+    with db.conn() as c:  # bottom line first, so the top line gets the newest id and is picked first
+        for line in reversed((ASSETS / "how_it_works.txt").read_text().splitlines()):
+            topic, _, angle = (x.strip() for x in line.partition("|"))
+            if topic and not topic.startswith("#"):
+                cur = c.execute(
+                    "INSERT OR IGNORE INTO ideas (source, source_ref, topic, angle, status, priority, created)"
+                    " VALUES ('how-it-works', ?, ?, ?, 'new', 8, ?)", ("how:" + topic.lower(), topic, angle, db.now()))
+                added += cur.rowcount
+    return added
+
+
+def is_how(idea) -> bool:
+    return idea is not None and idea["source"] == "how-it-works"
+
+
+def seed_debates() -> int:
+    """The big tech debates (assets/debates.txt): researched from news on every side, each made as a long
+    video plus a Short that points to it. First line is made first."""
+    added = 0
+    with db.conn() as c:
+        for line in reversed((ASSETS / "debates.txt").read_text().splitlines()):
+            topic, _, angle = (x.strip() for x in line.partition("|"))
+            if topic and not topic.startswith("#"):
+                cur = c.execute(
+                    "INSERT OR IGNORE INTO ideas (source, source_ref, topic, angle, status, priority, created)"
+                    " VALUES ('debate', ?, ?, ?, 'new', 8, ?)", ("debate:" + topic.lower(), topic, angle, db.now()))
+                added += cur.rowcount
+    return added
+
+
+def is_debate(idea) -> bool:
+    """A debate-lane topic, or the owner's own yes/no question ('Is the AI bubble about to pop?')."""
+    return idea is not None and (idea["source"] in DEBATE_SOURCES or (
+        idea["source"] == "owner" and bool(re.match(r"^\W*(is|are|does|do|did|will|would|can|could|should)\b",
+                                                    idea["topic"], re.I))))
 
 
 def refresh(backfill_pages: int = 0) -> int:
@@ -236,7 +408,12 @@ def refresh(backfill_pages: int = 0) -> int:
         except httpx.HTTPError as e:
             log.warning("AI tools feed unavailable: %s", e)
         added += seed_tools()
-    added += seed_evergreen()
+    for url in cfg()["sources"].get("news_feeds", []):  # tech news: the debates people are having this week
+        try:
+            added += _store("debate-news", _news_feed(url), priority=9, system=DEBATE_TRIAGE)
+        except Exception as e:
+            log.warning("news feed %s unavailable: %s", url, e)
+    added += seed_how_it_works() + seed_debates() + seed_evergreen()
     db.set_kv("ideas_refreshed", db.now())
     log.info("ideas refreshed: %d new", added)
     return added
@@ -283,18 +460,35 @@ def next_idea(kind: str):
     """Best unused idea for a short (max 2 shorts per idea) or a long video.
 
     Owner requests always come first. Otherwise a share of videos (ai_tools.share) is about AI
-    tools and the rest are concept explainers; if one lane is empty the other is used."""
+    tools; long videos rotate between the big debates, how-it-works and concept explainers so the
+    channel never runs one format twice in a row; if a lane is empty the next one is used."""
     import random
-    used = "long_made = 0" if kind == "long" else "shorts_made < 2"
+    from datetime import datetime, timedelta
+    paired = "('how-it-works','debate','debate-news')"  # their Short is the teaser of the long video
+    used = ("long_made = 0" if kind == "long" else
+            f"shorts_made < 2 AND NOT (source IN {paired} AND (long_made = 0 OR shorts_made >= 1))")
+    stale = (datetime.now() - timedelta(days=cfg()["sources"].get("news_days", 10))).isoformat(timespec="seconds")
+    used += f" AND NOT (source='debate-news' AND long_made = 0 AND created < '{stale}')"  # old news is old
     order = " ORDER BY priority DESC, (shorts_made + long_made) ASC, id DESC LIMIT 1"
     tools = cfg().get("ai_tools", {})
     want_tool = tools.get("enabled") and random.random() < tools.get("share", {}).get(kind, 0)
-    lanes = ["source IN ('AI tools','tool-evergreen')", "source NOT IN ('AI tools','tool-evergreen')"]
+    tool = "source IN ('AI tools','tool-evergreen')"
+    lanes = {"debate": "source IN ('debate','debate-news')", "how": "source = 'how-it-works'",
+             "explain": "source NOT IN ('AI tools','tool-evergreen','debate','debate-news','how-it-works')"}
     with db.conn() as c:
         owner = c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND source='owner'{order}").fetchone()
         if owner:
             return owner
-        for lane in (lanes if want_tool else lanes[::-1]):
+        if kind == "long":
+            last = c.execute("SELECT i.source FROM videos v JOIN ideas i ON i.id = v.idea_id WHERE v.kind='long'"
+                             " AND v.status NOT IN ('failed','rejected') ORDER BY v.id DESC LIMIT 1").fetchone()
+            last_lane = {"debate": "debate", "debate-news": "debate", "how-it-works": "how"}.get(last[0] if last else "", "explain")
+            rotation = [x for x in cfg()["sources"].get("long_rotation", ["debate", "how", "explain"]) if x in lanes]
+            k = (rotation.index(last_lane) + 1) % len(rotation) if last_lane in rotation else 0
+            order_lanes = [lanes[x] for x in rotation[k:] + rotation[:k]]
+        else:
+            order_lanes = ["source NOT IN ('AI tools','tool-evergreen')"]
+        for lane in ([tool] + order_lanes if want_tool else order_lanes + [tool]):
             idea = c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND {lane}{order}").fetchone()
             if idea:
                 return idea

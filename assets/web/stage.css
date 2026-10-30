@@ -152,3 +152,67 @@ svg.edges { position: absolute; inset: 0; overflow: visible; }
 
 /* Thoma the imp (drawn by mascot.js) */
 #thoma { position: absolute; z-index: 8; transform-origin: 50% 100%; }
+
+/* how-it-works visuals: hero object, scan views, timelines, maps, zoom */
+.hero { position: absolute; }
+.hero-glow { position: absolute; inset: -22%; border-radius: 50%; }
+.hero-ring { position: absolute; inset: 0; border-radius: 50%; border: 3px dashed; }
+.hero-icon { position: absolute; inset: 20%; display: flex; align-items: center; justify-content: center; }
+.hero-icon svg { width: 100%; height: 100%; stroke-width: 1.5; filter: drop-shadow(0 0 22px currentColor); }
+.pill.tag { background: #0d1430; font-weight: 800; }
+.range { position: absolute; border-radius: 50%; border: 2px solid rgba(140, 160, 255, 0.16); }
+.range.wave { transform: translate(-50%, -50%); border: 3px solid var(--cyan); }
+.beam { position: absolute; border-radius: 50%; opacity: 0; }
+.lpt { position: absolute; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); opacity: 0; }
+.bbox { position: absolute; border: 4px solid var(--amber); border-radius: 10px; box-shadow: 0 0 24px rgba(251,191,36,0.45), inset 0 0 18px rgba(251,191,36,0.15); }
+.btag { position: absolute; padding: 4px 12px; border-radius: 8px; background: var(--amber); color: #1a1300; font-weight: 850; white-space: nowrap; }
+.marker { position: absolute; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%; background: var(--amber);
+          box-shadow: 0 0 30px var(--amber), 0 0 70px rgba(251,191,36,0.5); z-index: 1; opacity: 0; }
+.tdot { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; border: 6px solid; background: #0d1430; }
+.crumbs { position: absolute; left: 0; right: 0; top: 0; text-align: center; font-weight: 750; letter-spacing: 0.01em; }
+.block { position: absolute; border-radius: 8px; background: rgba(140, 160, 255, 0.05); border: 1.5px solid rgba(140, 160, 255, 0.08); }
+
+/* film look: soft vignette and a little grain over everything except Thoma and captions */
+#frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+                background: radial-gradient(ellipse at 50% 45%, transparent 58%, rgba(0, 0, 0, 0.42) 100%); }
+#grain { position: absolute; inset: -60px; z-index: 3; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+         background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+
+/* chapter card (long videos): slides in at the start of each chapter */
+.chapcard { position: absolute; z-index: 6; display: flex; align-items: center; gap: 18px; padding: 12px 28px 12px 14px;
+            border-radius: 18px; background: rgba(13, 20, 48, 0.92); border: 2px solid var(--panel-edge);
+            box-shadow: 0 16px 50px rgba(0,0,0,0.5); opacity: 0; }
+.chapcard .num { display: flex; align-items: center; justify-content: center; width: 58px; height: 58px; border-radius: 14px;
+                 background: var(--amber); color: #1a1300; font-weight: 900; font-size: 30px; }
+.chapcard .name { font-weight: 850; font-size: 36px; letter-spacing: -0.01em; }
+.chapcard .kick { display: block; color: var(--muted); font-size: 18px; font-weight: 700; letter-spacing: 0.14em; }
+
+/* real photos (photo, photos, quote) */
+.photo { position: absolute; overflow: hidden; border-radius: 26px; border: 2px solid var(--panel-edge); background: #000;
+         box-shadow: 0 30px 80px rgba(0,0,0,0.55); }
+.photo img { transform-origin: 50% 50%; }
+.photo .shade { position: absolute; left: 0; right: 0; bottom: 0; height: 55%; background: linear-gradient(transparent, rgba(3,6,16,0.88)); }
+.photo .lower { position: absolute; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.photo .tag { padding: 6px 18px; border-radius: 10px; background: var(--amber); color: #1a1300; font-weight: 850;
+              letter-spacing: 0.06em; text-transform: uppercase; }
+.photo .cap { font-weight: 850; line-height: 1.12; color: #fff; text-shadow: 0 3px 18px rgba(0,0,0,0.7); }
+.photo .cap .hl { color: var(--amber); }
+.credit { position: absolute; right: 14px; bottom: 10px; color: rgba(255,255,255,0.72); font-weight: 500;
+          text-shadow: 0 1px 4px rgba(0,0,0,0.9); white-space: nowrap; max-width: 80%; overflow: hidden; text-overflow: ellipsis; }
+.face { position: absolute; border-radius: 50%; overflow: hidden; border: 6px solid var(--amber);
+        box-shadow: 0 0 60px color-mix(in srgb, var(--amber) 45%, transparent); }
+.face .credit { left: 0; right: 0; bottom: 18px; text-align: center; max-width: none; }
+
+/* news headline cards and quotes */
+.news { position: absolute; background: #f6f7fb; color: #0b1020; border-radius: 18px; padding: 22px 34px;
+        box-shadow: 0 26px 70px rgba(0,0,0,0.55); display: flex; flex-direction: column; gap: 10px; border-left: 12px solid var(--amber); }
+.news .meta { display: flex; gap: 18px; align-items: baseline; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+.news .meta .date { color: #5b6585; font-weight: 600; }
+.news .text { font-weight: 800; line-height: 1.15; letter-spacing: -0.01em; }
+.news .text .hl { background: linear-gradient(transparent 58%, rgba(251,191,36,0.75) 58%); }
+.qmark { position: absolute; color: var(--amber); font-weight: 900; line-height: 1; font-family: Georgia, serif; }
+.qtext { position: absolute; font-weight: 800; line-height: 1.18; font-style: italic; }
+.qtext .w { display: inline-block; margin-right: 0.24em; }
+.qtext .hl { color: var(--amber); }
+.qwho { position: absolute; color: var(--muted); font-weight: 750; }
+.qwho span { font-weight: 500; }

@@ -1,0 +1,40 @@
+{
+  "title": "How do self-driving cars see the road?",
+  "description": "How a self-driving car sees the road: cameras, radar and lidar, explained simply.",
+  "tags": ["self driving cars", "how self driving cars work", "lidar", "radar", "tesla", "waymo", "robotaxi", "explained"],
+  "hashtags": ["selfdriving", "tech", "explained"],
+  "thumb_text": "How it *sees*",
+  "thumb_icon": "car",
+  "pinned_comment": "Would you sit in a car with no driver? Yes or no?",
+  "terms": [],
+  "scenes": [
+    {"say": "This car has no driver, yet it just stopped for a kid it could not even see.", "mood": "wow",
+     "visual": {"type": "parts", "object": "Robotaxi", "icon": "car", "parts": [
+       {"label": "Cameras", "sub": "eight eyes all around", "icon": "camera"},
+       {"label": "Radar", "sub": "sees through rain", "icon": "radar"},
+       {"label": "Lidar", "sub": "laser measuring tape", "icon": "scan-eye"},
+       {"label": "Computer", "sub": "the brain in the boot", "icon": "cpu"}]}},
+    {"say": "Cameras, radar, lidar and a computer. So let's poke at each one, starting with radar.", "mood": "point", "chapter": "The sensors", "visual": {"type": "keep"}},
+    {"say": "Radar throws radio waves out and listens for the echo, like a bat. It spots the bus and the cyclist, even in rain.", "mood": "talk",
+     "visual": {"type": "scan", "mode": "radar", "icon": "car-top", "center": "Your car", "targets": [
+       {"label": "Bus", "icon": "bus", "note": "40 m"}, {"label": "Cyclist", "icon": "bike", "note": "12 m"}, {"label": "Truck", "icon": "truck", "note": "25 m"}]}},
+    {"say": "Lidar spins a laser and draws the whole street in tiny dots, so it can tell a kid from a post.", "mood": "point",
+     "visual": {"type": "scan", "mode": "lidar", "icon": "car-top", "center": "Lidar view", "targets": [
+       {"label": "Kid", "icon": "person-standing"}, {"label": "Post", "icon": "traffic-cone"}]}},
+    {"say": "Then the camera reads what lasers can't: a red light, a stop sign, the lane lines.", "mood": "talk",
+     "visual": {"type": "scan", "mode": "camera", "icon": "car-top", "center": "Front camera", "targets": [
+       {"label": "Red light", "icon": "traffic-cone"}, {"label": "Stop sign", "icon": "octagon"}, {"label": "Lane lines", "icon": "route"}]}},
+    {"say": "Now go inside: the car, its computer, and the chip that runs the driving program.", "mood": "think", "chapter": "The brain",
+     "visual": {"type": "zoom", "levels": [{"label": "The car", "icon": "car"}, {"label": "The computer", "icon": "cpu"}, {"label": "The chip", "icon": "microchip"}]}},
+    {"say": "Each picture goes through layers: see the shapes, name them, guess where they move, then plan.", "mood": "talk",
+     "visual": {"type": "layers", "items": [{"label": "See shapes", "icon": "eye"}, {"label": "Name them", "icon": "tag"}, {"label": "Guess moves", "icon": "move"}, {"label": "Plan", "icon": "route"}]}},
+    {"say": "The plan is a path: from home, past the school, to the shop.", "mood": "point",
+     "visual": {"type": "path", "from": "Home", "stops": ["School"], "to": "Shop", "icon": "car", "note": "It redraws this path *ten times a second*"}},
+    {"say": "Robotaxis went from a desert race in 2004, to Waymo's paid rides in 2018, to cities today.", "mood": "talk", "chapter": "How we got here",
+     "visual": {"type": "timeline", "events": [{"when": "2004", "label": "Desert race"}, {"when": "2018", "label": "Waymo paid rides"}, {"when": "Today", "label": "Cities"}], "now": 2}},
+    {"say": "And how far can each sensor see? Camera about 250 metres, radar 160, lidar 200.", "mood": "think",
+     "visual": {"type": "bars", "heading": "How far each sensor sees", "unit": "m", "items": [{"label": "Camera", "value": 250}, {"label": "Radar", "value": 160}, {"label": "Lidar", "value": 200}], "highlight": 0}},
+    {"say": "So the car never just sees. It measures, names, guesses and plans, again and again. Stay curious. Thoma out!", "mood": "wave",
+     "visual": {"type": "takeaway", "text": "A self-driving car *measures, names, guesses and plans*, ten times a second"}}
+  ]
+}

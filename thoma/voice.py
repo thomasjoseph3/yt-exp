@@ -52,7 +52,7 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
     errors = []
     for model in [pinned_model] if pinned_model else v["gemini_models"]:  # one model per video: same sound
         for key in secrets("GEMINI_API_KEY"):
-            if (model, key) in _exhausted:
+            if time.time() - _exhausted.get((model, key), 0) < 3 * 3600:  # quotas reset daily; retry later
                 continue
             styled = model not in _no_style
             for attempt in range(3):
@@ -79,13 +79,13 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
                     return np.frombuffer(raw, dtype="<i2").astype(np.float32) / 32768  # raw 24 kHz PCM
             errors.append(f"{model}: HTTP {r.status_code}")
             if r.status_code in (429, 401, 403):
-                _exhausted.add((model, key))  # daily quota used up or key rejected: skip for this run
+                _exhausted[(model, key)] = time.time()  # daily quota used up or key rejected: skip for now
             elif r.status_code not in (404, 500, 503):
                 raise RuntimeError(f"Gemini TTS HTTP {r.status_code}: {r.text[:200]}")
     raise RuntimeError("all Gemini TTS models and keys unavailable: " + "; ".join(errors[-4:]))
 
 
-_exhausted: set = set()
+_exhausted: dict = {}
 pinned_model = last_model = None
 _no_style: set = set()
 
@@ -142,11 +142,16 @@ ENGINES = {"gemini": (_gemini, "GEMINI_API_KEY"), "google": (_google, "GOOGLE_TT
 _down: set[str] = set()
 
 
+class VoiceUnavailable(RuntimeError):
+    """No allowed voice has quota left right now. The video waits and is voiced later (Gemini's free
+    tier resets every day) instead of switching to a voice that doesn't sound like Thoma."""
+
+
 def speak(text: str, engine: str | None = None, voice: str | None = None, strict: bool = False) -> np.ndarray:
     """strict: use only `engine` (raise instead of falling back), so one video never mixes voices."""
     global last_engine
     order = [engine] if engine else cfg()["voice"].get("engines", ["kokoro"])
-    if "kokoro" not in order and not strict:
+    if "kokoro" not in order and not strict and cfg()["voice"].get("local_fallback", True):
         order = [*order, "kokoro"]
     for name in order:
         fn, key = ENGINES[name]
@@ -160,7 +165,7 @@ def speak(text: str, engine: str | None = None, voice: str | None = None, strict
             log.warning("%s voice failed, trying the next one: %s", name, e)
             _down.add(name)
     else:
-        raise RuntimeError("no voice engine worked")
+        raise VoiceUnavailable("no voice engine has quota left (" + ", ".join(order) + ")")
     # trim leading/trailing silence so timings are tight
     loud = np.flatnonzero(np.abs(audio) > 0.01)
     if len(loud):
@@ -205,21 +210,129 @@ def _norm(w: str) -> str:
     return re.sub(r"[^a-z0-9]", "", w.lower())
 
 
-def align(track: np.ndarray, script_words: list[str]) -> list[tuple[float, float]]:
-    """Start/end time of every script word in the track, from local speech recognition.
-    Words the recogniser hears differently (numbers, acronyms) are interpolated between neighbours."""
+class RecordingMismatch(ValueError):
+    """The owner's recording doesn't follow the script closely enough for the visuals to land on the words."""
+
+
+def recorded(path) -> np.ndarray:
+    """The owner's own recording, cleaned for narration: rumble out, light noise reduction, and long pauses
+    cut down to a short breath so the pace stays brisk like a real YouTuber's. Mono at SR."""
+    import imageio_ffmpeg
+    trim = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.1"
+    af = (f"highpass=f=70,afftdn=nf=-30,{trim},areverse,{trim},areverse,"
+          "silenceremove=stop_periods=-1:stop_duration=0.5:stop_threshold=-45dB:stop_silence=0.32")
+    out = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-loglevel", "error", "-i", str(path), "-af", af,
+                          "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(out, np.float32).copy()
+
+
+last_match = 1.0  # share of script words the aligner found in the last track
+
+
+def _hear(track: np.ndarray) -> list[tuple[str, float, float]]:
+    """Every word the local recogniser hears, with its start and end time."""
     audio16 = np.interp(np.arange(0, len(track), SR / 16000), np.arange(len(track)), track).astype(np.float32)
     # No initial_prompt: given the script as a hint, Whisper skips whole stretches it thinks were "already
     # said", and the captions in those stretches drift by seconds.
     segments, _ = _aligner().transcribe(audio16, language="en", word_timestamps=True, beam_size=5)
-    heard = [(_norm(w.word), w.start, w.end) for seg in segments for w in (seg.words or []) if _norm(w.word)]
+    return [(_norm(w.word), w.start, w.end) for seg in segments for w in (seg.words or []) if _norm(w.word)]
+
+
+def _utterances(track: np.ndarray) -> list[tuple[float, float]]:
+    """Stretches of speech between pauses (start, end in seconds)."""
+    hop = int(0.02 * SR)
+    rms = np.sqrt(np.mean(track[:len(track) // hop * hop].reshape(-1, hop) ** 2, axis=1))
+    if not len(rms):
+        return []
+    quiet = rms < 0.25 * np.median(rms[rms >= np.percentile(rms, 40)])
+    segs, start, run = [], None, 0
+    for f, q in enumerate(quiet):
+        if not q:
+            start, run = (f if start is None else start), 0
+        else:
+            run += 1
+            if start is not None and run >= 11:  # a pause of 0.22 s or more ends an utterance
+                segs.append((start, f - run + 1))
+                start = None
+    if start is not None:
+        segs.append((start, len(quiet)))
+    return [(a * 0.02, b * 0.02) for a, b in segs if b - a >= 8]
+
+
+def cut_retakes(track: np.ndarray, script_words: list[str]):
+    """A fluffed line said again leaves the first try in a recording (and Whisper, hearing the whole take,
+    quietly skips a phrase said twice). So each utterance is heard on its own, and one is cut when it
+    repeats what comes right after it AND the take matches the script at least as well without it. Coughs
+    and clicks (short sounds with no words) go too; ad-libs and repetitions the script really has stay.
+    Returns (track, heard words with times in the cut track)."""
+    script = [_norm(w) for w in script_words]
+    utts = []
+    for a, b in _utterances(track):
+        lo, hi = max(int((a - 0.1) * SR), 0), min(int((b + 0.1) * SR), len(track))
+        clip = track[lo:hi]
+        clip16 = np.interp(np.arange(0, len(clip), SR / 16000), np.arange(len(clip)), clip).astype(np.float32)
+        segments, _ = _aligner().transcribe(clip16, language="en", word_timestamps=True, beam_size=5,
+                                            condition_on_previous_text=False)
+        ws = [(_norm(w.word), lo / SR + w.start, lo / SR + w.end) for seg in segments for w in (seg.words or [])
+              if _norm(w.word)]
+        utts.append((a, b, ws))
+
+    def matched(keep):
+        heard = [w for k in keep for w, _, _ in utts[k][2]]
+        return sum(m.size for m in difflib.SequenceMatcher(None, script, heard, autojunk=False).get_matching_blocks())
+
+    keep = list(range(len(utts)))
+    best = matched(keep)
+    for i, (a, b, ws) in enumerate(utts):
+        words = [w for w, _, _ in ws]
+        if not words:
+            if b - a < 2.0:  # a cough or a click
+                keep.remove(i)
+            continue
+        after = [w for v in utts[i + 1:i + 3] for w, _, _ in v[2]][:len(words) + 6]
+        if len(set(words) & set(after)) < min(2, len(set(words))):
+            continue
+        trial = [k for k in keep if k != i]
+        score = matched(trial)
+        if score >= best:
+            keep, best = trial, score
+    cuts = []
+    for i in sorted(set(range(len(utts))) - set(keep)):
+        nxt = utts[i + 1][0] if i + 1 < len(utts) else len(track) / SR
+        cuts.append((max(utts[i][0] - 0.03, 0), nxt - 0.03))
+    heard = [w for k in keep for w in utts[k][2]]
+    if not cuts:
+        return track, heard
+    pieces, at, fade = [], 0, int(0.01 * SR)
+    for a, b in cuts:
+        pieces.append(track[at:int(a * SR)].copy())
+        at = int(b * SR)
+    pieces.append(track[at:].copy())
+    for p in pieces:  # tiny fades so a cut never clicks
+        if len(p) > 2 * fade:
+            p[:fade] *= np.linspace(0, 1, fade)
+            p[-fade:] *= np.linspace(1, 0, fade)
+    log.info("cut %d retake(s)/noise from the recording: %s", len(cuts), ", ".join(f"{a:.1f}-{b:.1f}s" for a, b in cuts))
+
+    def shift(t):
+        return t - sum(min(b, t) - a for a, b in cuts if t > a)
+    heard = [(w, shift(a), shift(b)) for w, a, b in heard]
+    return np.concatenate(pieces), heard
+
+
+def align(track: np.ndarray, script_words: list[str], heard=None) -> list[tuple[float, float]]:
+    """Start/end time of every script word in the track, from local speech recognition.
+    Words the recogniser hears differently (numbers, acronyms) are interpolated between neighbours."""
+    heard = heard if heard is not None else _hear(track)
     times: list = [None] * len(script_words)
     sm = difflib.SequenceMatcher(None, [_norm(w) for w in script_words], [h[0] for h in heard], autojunk=False)
     for a, b, size in sm.get_matching_blocks():
         for k in range(size):
             times[a + k] = (heard[b + k][1], heard[b + k][2])
+    global last_match
     total = len(track) / SR
     known = [i for i, t in enumerate(times) if t]
+    last_match = len(known) / max(len(script_words), 1)
     log.info("aligned %d of %d words by ear; the rest are placed between them", len(known), len(script_words))
     if not known:  # recogniser failed: spread evenly
         step = total / max(len(script_words), 1)
@@ -238,17 +351,50 @@ def align(track: np.ndarray, script_words: list[str]) -> list[tuple[float, float
     return times
 
 
-def narrate(scenes: list[dict], cache_dir=None):
+def narrate(scenes: list[dict], cache_dir=None, recording=None):
     """Voice the script as one continuous take (or a few long chunks), set the pace, then find
     exactly when every word is spoken.
 
     cache_dir keeps each chunk's raw take, so re-rendering after a small script fix only re-voices
-    the chunks whose words changed.
+    the chunks whose words changed. recording: the owner's own narration of the whole script, used
+    instead of a TTS voice.
     Returns (track, spans, words): spans are (start, end) per scene; words are per-scene lists of
     (word, start, end)."""
+    track = recorded(recording) if recording else _tts(scenes, cache_dir)
+    per_scene = [caption_words(s["say"]) for s in scenes]
+    flat = [w for ws in per_scene for w in ws]
+    wpm = len(flat) / (len(track) / SR / 60)
+    target = cfg()["voice"].get("target_wpm", 165)
+    heard = None
+    if recording:  # a real person's pace is kept; only a slow read gets a gentle nudge
+        track, heard = cut_retakes(track, flat)
+        wpm = len(flat) / (len(track) / SR / 60)
+        if wpm < target * 0.88:
+            factor = min(target * 0.95 / wpm, 1.12)
+            log.info("recording pace %.0f wpm, speeding up x%.2f", wpm, factor)
+            track = stretch(track, factor)
+            heard = [(w, a / factor, b / factor) for w, a, b in heard]
+    elif wpm < target * 0.93 or wpm > target * 1.07:  # too slow sounds lifeless, too fast loses people
+        factor = min(max(target / wpm, 0.85), 1.2)       # small changes only, pitch stays the same
+        log.info("voice pace %.0f wpm, adjusting speed x%.2f", wpm, factor)
+        track = stretch(track, factor)
+    times = align(track, flat, heard)
+    if recording and last_match < 0.6:
+        raise RecordingMismatch(f"only {last_match:.0%} of the script's words were heard in the recording")
+    words, k = [], 0
+    for ws in per_scene:
+        words.append([(w, *times[k + j]) for j, w in enumerate(ws)])
+        k += len(ws)
+    starts = [0.0] + [ws[0][1] for ws in words[1:]]
+    ends = starts[1:] + [min(words[-1][-1][2] + 0.3, len(track) / SR)]
+    return track, list(zip(starts, ends)), words
+
+
+def _tts(scenes: list[dict], cache_dir=None) -> np.ndarray:
     import hashlib
     import json
     global pinned_model
+    _down.clear()  # a long-running daemon tries every engine again for each video
     # every chunk uses one engine and one model: a video never changes voice halfway
     meta = cache_dir / "voice.json" if cache_dir else None
     if meta and meta.exists():
@@ -276,23 +422,7 @@ def narrate(scenes: list[dict], cache_dir=None):
             parts += [audio, np.zeros(int(CHUNK_GAP * SR), np.float32)]
     finally:
         pinned_model = None
-    track = np.concatenate(parts[:-1])
-    per_scene = [caption_words(s["say"]) for s in scenes]
-    flat = [w for ws in per_scene for w in ws]
-    wpm = len(flat) / (len(track) / SR / 60)
-    target = cfg()["voice"].get("target_wpm", 165)
-    if wpm < target * 0.93 or wpm > target * 1.07:  # too slow sounds lifeless, too fast loses people
-        factor = min(max(target / wpm, 0.85), 1.2)       # small changes only, pitch stays the same
-        log.info("voice pace %.0f wpm, adjusting speed x%.2f", wpm, factor)
-        track = stretch(track, factor)
-    times = align(track, flat)
-    words, k = [], 0
-    for ws in per_scene:
-        words.append([(w, *times[k + j]) for j, w in enumerate(ws)])
-        k += len(ws)
-    starts = [0.0] + [ws[0][1] for ws in words[1:]]
-    ends = starts[1:] + [min(words[-1][-1][2] + 0.3, len(track) / SR)]
-    return track, list(zip(starts, ends)), words
+    return np.concatenate(parts[:-1])
 
 
 def stretch(track: np.ndarray, factor: float) -> np.ndarray:

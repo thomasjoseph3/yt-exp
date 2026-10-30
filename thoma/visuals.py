@@ -51,6 +51,39 @@ Visual types:
      a neural network: input -> hidden layers -> output, with signals flowing through
   {"type":"chat","bot":"optional name","messages":[{"from":"user|bot","text":"<=80 chars","flag":"wrong|right|none","note":"optional stamp <=16"}, ...1-4]}
      a chat window; bot replies type out; flag "wrong" stamps a hallucination, "right" a sourced answer
+  How-it-works visuals (machines, vehicles, devices, real technology):
+  {"type":"parts","object":"<=24 the thing","icon":"car|rocket|plane|satellite|bot|smartphone|brain|...","heading":"optional <=40",
+     "parts":[{"label":"<=18","sub":"optional <=26","icon":"..."}, ...2-6]}
+     the machine big in the middle; a callout line draws out to each part as Thoma names it
+  {"type":"scan","mode":"radar|lidar|camera|signal","icon":"car-top (a car seen from above) or any icon","center":"<=16",
+     "targets":[{"label":"<=14","icon":"...","note":"optional <=12, e.g. 12 m"}, ...1-5]}
+     top-down sensor view: a sweeping beam (radar/lidar point cloud), a forward camera cone, or radio waves;
+     each target gets a detection box and tag when Thoma names it. For anything that senses or signals
+  {"type":"zoom","levels":[{"label":"<=22","icon":"...","sub":"optional <=40"}, ...2-4]}
+     dive inside: car -> computer -> chip; each level grows out of the one before it
+  {"type":"layers","heading":"optional","items":[{"label":"<=20","sub":"optional <=30","icon":"optional"}, ...2-5]}
+     an exploded stack of slabs, top to bottom (battery cell layers, a screen, a wing section)
+  {"type":"path","from":"<=14","to":"<=14","stops":["<=14", ...0-3],"icon":"car|plane|rocket|...","note":"optional <=60"}
+     a route on a map; the vehicle drives it as Thoma names each point (journeys, signal paths, flight paths)
+  {"type":"timeline","heading":"optional","events":[{"when":"<=10, e.g. 2008","label":"<=26"}, ...2-6],"now":optional index}
+     a line with a glowing marker that travels to each event as it is said (history, what happens in order)
+  {"type":"bars","heading":"<=40","unit":"optional, e.g. km","items":[{"label":"<=16","value":123,"note":"optional"}, ...2-6],"highlight":optional index}
+     real numbers compared: bars grow and the values count up. Only numbers from the research notes
+  Real photos and the news (photos come from free photo libraries, checked and credited automatically):
+  {"type":"photo","query":"2-5 search words naming the REAL thing","show":"what the photo must show, <=80 chars",
+     "caption":"optional <=60 chars with *highlight*","tag":"optional <=14, e.g. THE CLAIM, 2024, THE CEO"}
+     a full-screen real photograph with a slow pan. query names something photographed often: a famous product
+     ('Nvidia H100', 'Tesla Cybertruck'), a public figure ('Jensen Huang'), a place or building ('Microsoft
+     headquarters'), or a kind of scene ('data center server racks', 'students in a classroom'). Never an idea
+     ('AI bubble', 'future of work'): no photo of that exists, use an animated visual instead
+  {"type":"photos","heading":"optional <=40","items":[{"query":"...","show":"...","label":"<=24"}, ...2-3]}
+     2-3 real photos side by side, revealed as Thoma names each (the two sides of a fight, products compared)
+  {"type":"headlines","heading":"optional <=40","items":[{"source":"outlet, e.g. Reuters","date":"e.g. Oct 2026",
+     "text":"<=80 chars: what the story reported, in your own words"}, ...1-3]}
+     news cards pop in as Thoma names each story. Only stories in the research notes, with their real outlet and date
+  {"type":"quote","text":"<=140 chars","who":"<=30 name","when":"optional <=24, e.g. 'on CNBC, Oct 2026'",
+     "query":"optional photo search for that person, e.g. 'Sam Altman'"}
+     a real quote, word for word as it appears in the research notes. Never invent, merge or tidy a quote
   {"type":"keep"}       (same visual stays; use when the line continues the previous graphic)
   {"type":"takeaway","text":"<=90 chars, with *highlight*"}   (last scene only)
 
@@ -58,7 +91,12 @@ Make it look like a proper animated tech explainer (think Fireship pace, ByteMon
 SHOW the mechanism, don't just name it. For AI topics use the concept visuals: tokens for how a model
 reads text, predict for next-word guessing, vectors for embeddings/semantic search/RAG retrieval,
 network for neural nets/training, chat for what a chatbot does (and hallucinations). Use at least
-one concept visual when the topic is about how AI works. Otherwise mostly diagrams, steps, compares and
+one concept visual when the topic is about how AI works. For machines and real technology, use the how-it-works
+visuals: parts to show what it is made of, scan for sensing, zoom to go inside, layers for stacked parts, path
+for journeys, timeline for history or order of events, bars for real numbers. Real photos make it feel real:
+whenever Thoma names a real product, person, company, place or event, show it with a photo (long videos: at
+least 3, one of them in the first 30 seconds), news stories with headlines, and what someone said with a quote;
+then go back to animations to explain how it works. Otherwise mostly diagrams, steps, compares and
 analogies; a title or bigtext to open or to land a punchline; a stat for a striking number; code only when it helps. Change the visual every 1-2
 sentences (every 4-10 seconds) so the screen never sits still. Node labels and list items should
 be words Thoma actually says, so they appear on screen as he says them."""
@@ -74,13 +112,14 @@ def icon_names() -> list[str]:
 
 @lru_cache
 def icon_svg(name: str) -> str:
-    return (ICON_DIR / f"{name}.svg").read_text()
+    f = ICON_DIR / f"{name}.svg"
+    return f.read_text() if f.exists() else ""  # e.g. car-top, which stage.js draws itself
 
 
 def fix_icon(name) -> str:
     name = str(name or "").strip().lower().replace(" ", "-").replace("_", "-")
     names = icon_names()
-    if name in names:
+    if name in names or name == "car-top":  # car-top: drawn by stage.js (a car seen from above)
         return name
     close = difflib.get_close_matches(name, names, n=1, cutoff=0.6)
     return close[0] if close else "sparkles"
@@ -132,6 +171,33 @@ def normalize(v: dict) -> dict:
             v["near"] = 0
     if v.get("type") == "chat":
         v["messages"] = [({"from": "user", "text": m} if isinstance(m, str) else dict(m)) for m in v.get("messages") or []][:4]
+    for key, cap in (("parts", 6), ("targets", 5), ("levels", 4), ("events", 6)):
+        if key in v:
+            v[key] = [({"label": x} if isinstance(x, str) else
+                       {**x, "label": str(x.get("label", "")), **({"icon": fix_icon(x["icon"])} if x.get("icon") else {})})
+                      for x in v.get(key) or []][:cap]
+    if v.get("type") == "bars":
+        items = []
+        for x in v.get("items") or []:
+            x = {"label": x} if isinstance(x, str) else dict(x)
+            try:
+                x["value"] = float(re.sub(r"[^0-9.\-]", "", str(x.get("value", 0))) or 0)
+            except ValueError:
+                x["value"] = 0.0
+            if x["value"] == int(x["value"]):
+                x["value"] = int(x["value"])
+            items.append(x)
+        v["items"] = items[:6]
+    if v.get("type") == "layers":
+        v["items"] = [({"label": x} if isinstance(x, str) else
+                       {**x, "label": str(x.get("label", "")), **({"icon": fix_icon(x["icon"])} if x.get("icon") else {})})
+                      for x in v.get("items") or []][:5]
+    if v.get("type") == "path":
+        v["stops"] = [str(x) for x in v.get("stops") or []][:3]
+    if v.get("type") == "photos":
+        v["items"] = [({"query": x, "label": x} if isinstance(x, str) else dict(x)) for x in v.get("items") or []][:3]
+    if v.get("type") == "headlines":
+        v["items"] = [({"text": x} if isinstance(x, str) else dict(x)) for x in v.get("items") or []][:3]
     if v.get("type") == "steps":
         v["items"] = [({"text": x} if isinstance(x, str) else {**x, "icon": fix_icon(x["icon"]) if x.get("icon") else None})
                       for x in v.get("items") or []]
@@ -139,12 +205,13 @@ def normalize(v: dict) -> dict:
 
 
 def icons_used(visuals) -> set[str]:
-    found = {"sparkles", "bell", "box", "check", "x", "cpu", "coffee", "bot"}
+    found = {"sparkles", "bell", "box", "check", "x", "cpu", "coffee", "bot", "circle-dot", "circle-alert", "car", "image"}
     for v in visuals:
         for key in ("icon",):
             if v.get(key):
                 found.add(v[key])
-        for n in v.get("nodes", []) + v.get("items", []):
+        for n in (v.get("nodes", []) + v.get("items", []) + v.get("parts", []) + v.get("targets", [])
+                  + v.get("levels", []) + v.get("events", [])):
             if isinstance(n, dict) and n.get("icon"):
                 found.add(n["icon"])
         for side in ("left", "right"):
@@ -185,6 +252,26 @@ def elements(v: dict) -> tuple[list[str], bool]:
         return [v.get("input") or "input", v.get("middle") or "layers", v.get("output") or "output"], False
     if t == "chat":
         return [m.get("text", "") for m in v.get("messages", [])], False
+    if t == "parts":
+        return [v.get("object") or ""] + [p["label"] for p in v.get("parts", [])], False
+    if t == "scan":
+        return [v.get("center") or ""] + [x["label"] for x in v.get("targets", [])], False
+    if t in ("zoom",):
+        return [x["label"] for x in v.get("levels", [])], False
+    if t == "timeline":
+        return [f"{e.get('when', '')} {e['label']}" for e in v.get("events", [])], False
+    if t in ("layers", "bars"):
+        return [x["label"] for x in v.get("items", [])], False
+    if t == "photo":
+        return [v.get("caption") or v.get("tag") or ""], False
+    if t == "photos":
+        return [x.get("label") or x.get("query", "") for x in v.get("items", [])], False
+    if t == "headlines":
+        return [x.get("text", "") for x in v.get("items", [])], False
+    if t == "quote":
+        return [v.get("text", ""), v.get("who", "")], False
+    if t == "path":
+        return [x for x in [v.get("from"), *v.get("stops", []), v.get("to")] if x], False
     return [], True
 
 

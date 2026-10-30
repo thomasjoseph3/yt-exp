@@ -1,0 +1,25 @@
+{
+ "title": "Is the AI bubble about to pop?",
+ "thumb_text": "AI *bubble*?",
+ "thumb_icon": "trending-up",
+ "description": "Test script for the real-photo visuals (photo, photos, headlines, quote).",
+ "tags": ["ai bubble"],
+ "scenes": [
+  {"say": "Every big tech company is spending billions on giant buildings full of chips.", "mood": "wow",
+   "visual": {"type": "photo", "query": "data center server racks", "show": "rows of servers in a data center",
+              "caption": "Billions on *chips*", "tag": "the spending"}},
+  {"say": "And most of those chips come from one company: Nvidia, led by Jensen Huang.", "mood": "point",
+   "visual": {"type": "photos", "items": [
+     {"query": "Nvidia H100", "show": "an Nvidia H100 GPU chip or card", "label": "Nvidia's *chip*"},
+     {"query": "Jensen Huang", "show": "Nvidia CEO Jensen Huang", "label": "Jensen *Huang*"}]}},
+  {"say": "We've seen this movie before. In March 2000 the Nasdaq hit its peak. By October 2002 it had lost almost eighty percent.", "mood": "think",
+   "visual": {"type": "headlines", "items": [
+     {"source": "Nasdaq", "date": "Mar 2000", "text": "Tech stocks hit an all-time *peak*"},
+     {"source": "Nasdaq", "date": "Oct 2002", "text": "The index has lost almost *80%*"}]}},
+  {"say": "Back in 1996, Alan Greenspan asked the question everyone is asking again today.", "mood": "talk",
+   "visual": {"type": "quote", "text": "But how do we know when *irrational exuberance* has unduly escalated asset values",
+              "who": "Alan Greenspan", "when": "speech, Dec 1996", "query": "Alan Greenspan"}},
+  {"say": "So is this a bubble, or the real thing? Tell me in the comments. Thoma out!", "mood": "wave",
+   "visual": {"type": "takeaway", "text": "Bubble or *the real thing*?"}}
+ ]
+}

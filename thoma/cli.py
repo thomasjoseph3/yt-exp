@@ -19,7 +19,13 @@ def main():
     p.add_argument("kind", choices=["short", "long"])
     p.add_argument("--idea", type=int)
     p.add_argument("--script", help="render this script JSON instead of writing one")
-    p.add_argument("--llm", help="one provider (e.g. claude-opus) does research, writing and checking for this video")
+    p.add_argument("--llm", help="one provider (e.g. gemini) does research, writing and checking for this video")
+    p = sub.add_parser("series", help="'how it works' batch: long video + teaser Short per topic in "
+                                      "assets/how_it_works.txt (scripts first, then render what the voice quota allows)")
+    p.add_argument("--n", type=int, default=10, help="how many topics")
+    p.add_argument("--llm", help="one provider for research and writing (the checker stays as configured)")
+    p.add_argument("--no-render", action="store_true", help="only write and check the scripts")
+    sub.add_parser("render", help="render the videos whose scripts are waiting (e.g. for the voice quota)")
     p = sub.add_parser("preview", help="render still frames of a script JSON (fast visual check)")
     p.add_argument("script")
     p.add_argument("kind", choices=["short", "long"])
@@ -30,6 +36,10 @@ def main():
     p.add_argument("id", type=int)
     p = sub.add_parser("publish", help="upload a video to all its platforms and make it public right now")
     p.add_argument("id", type=int)
+    p = sub.add_parser("record", help="narrate a video in your own voice: without FILE, sends you the reading "
+                                      "sheet; with FILE (any audio), renders the video with that recording")
+    p.add_argument("id", type=int)
+    p.add_argument("file", nargs="?")
     sub.add_parser("voices", help="say a test line in each candidate voice (out/voices/) to pick one")
     sub.add_parser("tick", help="one scheduler pass")
     sub.add_parser("daemon", help="run forever (tick every schedule.tick_minutes)")
@@ -58,6 +68,14 @@ def main():
         script = json.load(open(a.script)) if a.script else None
         vid = pipeline.make(a.kind, a.idea, script)
         print(f"#{vid} ready: {db.video(vid)['path']}")
+    elif a.cmd == "series":
+        if a.llm:
+            cfg()["llm"]["roles"].update({r: [a.llm] for r in ("research", "write")})
+        made = pipeline.series(a.n, render=not a.no_render)
+        print(f"scripts written: {made}")
+        print(pipeline.status_text())
+    elif a.cmd == "render":
+        print(f"rendered {pipeline.render_scripted()} video(s)")
     elif a.cmd == "preview":
         from . import render
         from .config import OUT
@@ -74,6 +92,18 @@ def main():
         db.update_video(a.id, status="rejected")
     elif a.cmd == "publish":
         pipeline.schedule(a.id, at=pipeline.local_now())
+    elif a.cmd == "record":
+        from pathlib import Path
+        from .config import OUT
+        v = db.video(a.id)
+        if a.file:
+            pipeline.save_recording(a.id, Path(a.file))
+            print(f"#{a.id} ready: {pipeline.render_video(a.id)}")
+        else:
+            sheet = OUT / f"{a.id:04d}-{v['kind']}" / "read-aloud.txt"
+            sheet.write_text(pipeline.reading_sheet(a.id, json.loads(v["script"])))
+            pipeline.ask_recording(a.id)
+            print(f"reading sheet: {sheet} (also sent on Telegram)")
     elif a.cmd == "voices":
         from . import voice
         from .config import OUT

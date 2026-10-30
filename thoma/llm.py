@@ -34,11 +34,13 @@ def _chain(task: str) -> list[dict]:
     role = {"revise": "write"}.get(task.split("-")[0], task.split("-")[0])
     names = (conf.get("roles") or {}).get(role)
     by_name = {p["name"]: p for p in conf["providers"]}
-    return [by_name[n] for n in names if n in by_name] if names else conf["providers"]
+    chain = [by_name[n] for n in names if n in by_name] if names else conf["providers"]
+    # Owner (2026-10-29, again 2026-10-30): never Opus, whatever the config says. It writes too technically.
+    return [p for p in chain if "opus" not in json.dumps(p).lower()]
 
 
 def _claude_cli(p: dict, system: str, prompt: str) -> str:
-    cmd = ["claude", "-p", "--output-format", "json", "--model", p.get("model", "sonnet"),
+    cmd = ["claude", "-p", "--output-format", "json", "--model", p.get("model") or "sonnet",
            "--system-prompt", system, "--tools", "", "--no-session-persistence",
            "--setting-sources", ""]
     # Run from an empty folder so no project CLAUDE.md or MCP config leaks in.
@@ -53,14 +55,43 @@ def _claude_cli(p: dict, system: str, prompt: str) -> str:
     return out["result"]
 
 
+OUT_OF_CREDITS = re.compile(r"credits? (have been )?exhausted|credit usage limit|upgrade your subscription", re.I)
+
+
 def _cli(p: dict, system: str, prompt: str) -> str:
     """Any agent CLI in print mode (e.g. `qodercli -p`): prompt on stdin, answer on stdout."""
     with tempfile.TemporaryDirectory() as tmp:
         r = subprocess.run(p["command"], input=f"{system}\n\n---\n\n{prompt}", capture_output=True,
                            text=True, timeout=900, cwd=tmp)
-    if r.returncode != 0 or not r.stdout.strip():
+    if r.returncode != 0 or not r.stdout.strip() or (OUT_OF_CREDITS.search(r.stdout) and "{" not in r.stdout):
         raise RuntimeError(f"{p['command'][0]} exit {r.returncode}: {(r.stderr or r.stdout)[:300]}")
     return r.stdout
+
+
+def _gemini(p: dict, system: str, prompt: str) -> str:
+    """Gemini through an AI Studio key (free tier). Tries each model with each key: every pair has its
+    own daily quota. Pro models have no free quota, so config lists Flash models."""
+    errors = []
+    body = {"systemInstruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"responseMimeType": "application/json", "temperature": 0.8}}
+    for model in p["models"]:
+        for key in secrets(p.get("api_key_env", "GEMINI_API_KEY")):
+            try:
+                r = httpx.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                               json=body, headers={"x-goog-api-key": key}, timeout=300)
+            except httpx.HTTPError as e:
+                errors.append(f"{model}: {type(e).__name__}")
+                continue
+            if r.status_code == 200:
+                parts = r.json()["candidates"][0]["content"].get("parts", [])
+                text = "".join(x.get("text", "") for x in parts if not x.get("thought"))
+                if text.strip():
+                    return text
+            errors.append(f"{model}: HTTP {r.status_code}")
+            if r.status_code not in (200, 401, 403, 404, 429, 500, 503):
+                raise RuntimeError(f"Gemini HTTP {r.status_code}: {r.text[:300]}")
+    raise RuntimeError("no Gemini model answered: " + "; ".join(errors[-4:]))
 
 
 def _openai(p: dict, system: str, prompt: str) -> str:
@@ -83,7 +114,7 @@ def _openai(p: dict, system: str, prompt: str) -> str:
     return r.json()["choices"][0]["message"]["content"]
 
 
-CALLERS = {"claude_cli": _claude_cli, "cli": _cli, "openai": _openai}
+CALLERS = {"claude_cli": _claude_cli, "cli": _cli, "openai": _openai, "gemini": _gemini}
 
 
 def parse_json(text: str):
@@ -112,6 +143,10 @@ def ask_json(system: str, prompt: str, task: str = "") -> dict:
             try:
                 text = CALLERS[p["type"]](p, system, prompt)
                 result = parse_json(text)
+                if isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict):
+                    result = result[0]  # some models wrap the object in a list
+                if not isinstance(result, dict):
+                    raise json.JSONDecodeError("not a JSON object", text[:50], 0)
                 log.info("llm %s ok (%s, %.0fs)", p["name"], task, time.time() - t0)
                 last_provider = p["name"]
                 return result

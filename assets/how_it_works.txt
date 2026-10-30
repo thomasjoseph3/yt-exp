@@ -1,0 +1,14 @@
+# "How does it really work?" topics: researched on the open web (not only the source channels).
+# Each becomes a long video plus a Short that points to it. First line is made first.
+# Format: topic | the one everyday example the video keeps coming back to (optional)
+# Picked 2026-10-29 from YouTube demand (views of the top explainers, and what is trending).
+How does Tesla's flying Roadster actually fly? | the few seconds after the driver presses the button to take off
+How do self-driving cars see the road? | a robotaxi driving you to school on a rainy morning when a kid runs after a ball
+How does SpaceX catch a falling rocket with chopsticks? | trying to catch a falling pen with chopsticks
+How do humanoid robots like Tesla Optimus walk without falling? | balancing a broom upright on your palm
+How does Neuralink read your thoughts? | a patient moving a mouse cursor just by thinking about it
+How does a quantum computer actually work? | finding the one right path in a giant maze
+How do airplanes stay in the air? | your hand out of a moving car's window
+How does Face ID know it's really you? | unlocking your phone in a dark room while your twin tries to fool it
+How does Starlink beam internet from space? | a video call from a village with no cables or towers
+How do electric car batteries work, and why do solid-state batteries matter? | why your phone gets slow to charge after 80%

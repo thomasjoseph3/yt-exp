@@ -39,6 +39,6 @@ def secret(name: str) -> str:
 
 
 def secrets(name: str) -> list[str]:
-    """NAME, NAME_2, NAME_3 ... : a main key plus backups, in the order to try them."""
-    keys = [secret(name)] + [secret(f"{name}_{i}") for i in range(2, 6)]
+    """NAME, NAME_2 ... NAME_10 (gaps are fine): a main key plus backups, in the order to try them."""
+    keys = [secret(name)] + [secret(f"{name}_{i}") for i in range(2, 11)]
     return [k for k in keys if k]

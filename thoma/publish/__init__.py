@@ -2,6 +2,7 @@
 from ..config import cfg
 
 DISCLOSURE = "Thoma is an animated character. Narration uses an AI voice; scripts are AI-assisted and reviewed."
+DISCLOSURE_OWN_VOICE = "Thoma is an animated character, voiced by the channel's host. Scripts are AI-assisted and reviewed."
 
 
 def caption(script: dict, kind: str, platform: str) -> str:
@@ -15,9 +16,16 @@ def caption(script: dict, kind: str, platform: str) -> str:
     credit = ""
     if script.get("music"):
         credit = cfg()["music"]["credit"].format(track=script["music"]) + "\n"
+    if script.get("image_credits"):  # CC licenses require the credit wherever the video is posted
+        credit += "Photos: " + "; ".join(script["image_credits"]) + "\n"
+    sources = ""
+    if script.get("sources") and kind == "long":
+        sources = "Sources:\n" + "\n".join(f"- {s['outlet']}, {s['title']} ({s['date']}): {s['url']}"
+                                            for s in script["sources"][:12]) + "\n\n"
+    disclosure = DISCLOSURE_OWN_VOICE if script.get("voice") == "owner" else DISCLOSURE
     handle = (cfg()["channel"].get("youtube_handle") or "").lstrip("@")
     sub = f"New AI explainer every day. Subscribe: https://www.youtube.com/@{handle}?sub_confirmation=1\n\n" if handle else ""
-    return f"{script['description']}\n\n{sub}{links}{chapters}{tags}\n\n{credit}{DISCLOSURE}"
+    return f"{script['description']}\n\n{sub}{links}{chapters}{sources}{tags}\n\n{credit}{disclosure}"
 
 
 def _affiliate_links(script: dict) -> str:

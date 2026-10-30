@@ -5,30 +5,33 @@ channel:
   timezone: "Asia/Kolkata"
   youtube_handle: ""        # e.g. "@ThomaExplains" once the channel exists: adds a subscribe link to descriptions
 
-# Script writers, tried in order. Only Qoder and Claude write content: if both are unavailable
-# (limits reached, offline), the studio waits and retries on the next tick instead of using a
-# weaker model. A provider that fails is skipped for cooldown_minutes, then tried again.
+# Script writers, tried in order. Qoder writes (Gemini Flash when Qoder is out), Claude Sonnet checks.
+# Owner (2026-10-29): never Opus for scripts, it writes too technically; save Claude for checking.
+# If every provider for a job is unavailable, the studio waits and retries on the next tick.
+# A provider that fails is skipped for cooldown_minutes, then tried again.
 #   cli        : a coding-agent CLI in print mode, prompt on stdin (Qoder CLI)
+#   gemini     : Gemini through your AI Studio key (GEMINI_API_KEY), free tier; Pro has no free quota
 #   claude_cli : your Claude subscription through `claude -p`
 llm:
   providers:
-    - name: qoder                      # first choice: uses your Qoder credits
-      type: cli
-      command: ["qodercli", "-p"]       # npm i -g @qoder-ai/qodercli ; then `qodercli` and /login once
-    - name: claude                     # backup writer, and the checker: your Claude subscription
+    - name: qoder                      # first choice. With paid credits add e.g. "-m", "<model>" (`qodercli --list-models`);
+      type: cli                        # with credits used up it answers with its free model
+      command: ["qodercli", "-p", "--tools", ""]   # tools off: it only writes (with tools it wandered for 15+ min)
+                                                  # install: npm i -g @qoder-ai/qodercli ; then `qodercli` and /login once
+    - name: gemini                     # backup writer, free: each model x key has its own daily quota
+      type: gemini
+      models: [gemini-3-flash-preview, gemini-2.5-flash]
+    - name: claude                     # the checker: your Claude subscription (Sonnet, never Opus)
       type: claude_cli
       model: sonnet
-    - name: claude-opus                # Claude's strongest model, for gold-standard scripts (`make --llm claude-opus`)
-      type: claude_cli
-      model: opus
   # Who does which job (tried in order). Qoder writes, Claude checks every script; Claude's notes go back
   # to Qoder for the rewrite, and each check is logged (`thoma lessons`) so recurring mistakes get fixed
   # in the prompts. `thoma make ... --llm <name>` puts one provider on every job for that video.
   roles:
-    research: [qoder, claude]
-    write: [qoder, claude]
-    review: [claude, qoder]
-    triage: [qoder, claude]
+    research: [qoder, gemini]
+    write: [gemini, qoder]        # owner 2026-10-29: speed. Gemini drafts in ~40 s; Qoder free takes 2-7 min a draft
+    review: [claude, gemini]
+    triage: [qoder, gemini]
   # After a provider fails, skip it for this many minutes before trying it again.
   cooldown_minutes: 60
 
@@ -43,6 +46,19 @@ sources:
     - name: Fireship
       channel_id: UCsBjURrPoezykLs9EqgamOA
   refresh_hours: 6
+  # Tech news: the triage keeps the live debates (AI money, jobs, privacy, lawsuits, safety...) and each becomes a
+  # "big debate" long video + teaser Short, researched from several outlets with both sides and a sources list.
+  # Partisan politics, war, crime and health claims are never picked (YouTube ad rules and accuracy).
+  news_feeds:
+    - https://www.theverge.com/rss/index.xml
+    - https://feeds.arstechnica.com/arstechnica/index
+    - https://techcrunch.com/feed/
+    - https://www.wired.com/feed/rss
+    - https://hnrss.org/frontpage?points=300
+  news_days: 10              # a news debate not made within this many days is dropped (old news)
+  # Long videos take turns so the channel never runs one format twice in a row (owner, 2026-10-30):
+  #   debate = the big tech debates (assets/debates.txt + news), how = how it really works, explain = AI concepts
+  long_rotation: [debate, how, explain]
 
 # AI tool videos: "tool spotlight" Shorts and "how to use" tutorials, from Product Hunt's AI feed
 # (new launches) and assets/ai_tools.txt (well-known tools people search for).
@@ -92,12 +108,30 @@ publish:
   youtube_category: "27"               # Education
   graph_api_version: v26.0             # Meta Graph API; bump when Meta deprecates it
 
+# Real photos in the videos (thoma/images.py): searched on Wikimedia Commons (+ Pexels with PEXELS_API_KEY, free at
+# pexels.com/api), checked by a Gemini vision model so only photos that really show the thing are used, and
+# credited in every description. Only licenses that allow use in a monetized video, with credit.
+# "cc by sa" covers most photos of people and products; remove it to be extra strict (fewer photos found).
+images:
+  licenses: [cc0, public domain, cc by, cc by sa, godl, pexels]
+  check_models: [gemini-2.5-flash-lite, gemini-2.5-flash, gemini-3-flash-preview]
+
 voice:
+  # Your own voice (owner's offer, 2026-10-30). Kinds listed here are narrated by you: when the script is
+  # written, Telegram sends you a reading sheet; reply to it with a voice note. The studio cleans the audio
+  # (noise, long pauses, fluffed lines said twice), matches every visual to your words and renders it.
+  # No recording within record_wait_hours: the AI voice reads it, so no slot is missed.
+  # e.g. record: [long]  (recommended: your voice on the long videos, AI on the Shorts)
+  record: []
+  record_wait_hours: 20
   # Tried in order, per scene; a failing engine is skipped for the rest of that video.
   #   gemini = Gemini TTS via your AI Studio key (GEMINI_API_KEY). Free tier, most natural, takes a style.
   #   google = Google Cloud Chirp 3 HD (GOOGLE_TTS_API_KEY). 1M chars/month free; needs a billing card.
-  #   kokoro = local, free, offline, more robotic. Always the last resort.
-  engines: [gemini, google, kokoro]
+  #   kokoro = local, free, offline, more robotic.
+  engines: [gemini, google]
+  # false: when no engine above has quota left, the video waits (Gemini's free tier resets daily) instead
+  # of being voiced by Kokoro, which doesn't sound like Thoma. true: fall back to Kokoro.
+  local_fallback: false
   gemini_models: [gemini-3.8-flash-tts, gemini-3.1-flash-tts-preview, gemini-2.5-flash-preview-tts]  # tried in order when one is busy
   gemini_voice: Puck                   # run `thoma voices` to hear the options, then pick one
   gemini_style: >-

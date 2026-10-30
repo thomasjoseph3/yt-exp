@@ -16,7 +16,7 @@ import imageio_ffmpeg
 import numpy as np
 import soundfile as sf
 
-from . import visuals, voice
+from . import images, visuals, voice
 from .config import ASSETS, cfg
 
 log = logging.getLogger("thoma.render")
@@ -101,22 +101,24 @@ def _captions(words):
     return [{"start": g[0]["s"], "end": g[-1]["e"], "words": g} for g in groups]
 
 
-def _blocks(scenes, spans, words, end_time):
+def _blocks(scenes, spans, words, end_time, out_dir: Path):
     """Merge 'keep' scenes into the visual before them and time every reveal."""
     blocks = []
     for s, (a, b), ws in zip(scenes, spans, words):
         v = visuals.normalize(s.get("visual"))
         if v.get("type") == "keep" and blocks:
             blocks[-1]["words"] += ws
+            blocks[-1]["say"] += " " + s["say"]
             continue
         if v.get("type") == "keep":
             v = {"type": "bigtext", "text": s["say"][:60]}
-        blocks.append({"visual": v, "start": a, "words": list(ws)})
+        blocks.append({"visual": v, "start": a, "words": list(ws), "say": s["say"]})
+    credits = images.attach(blocks, out_dir)  # real photos (a photo scene with no usable photo turns into big text)
     for i, blk in enumerate(blocks):
         blk["end"] = blocks[i + 1]["start"] if i + 1 < len(blocks) else end_time
         blk["reveals"] = visuals.reveal_times(blk["visual"], blk["words"], blk["start"], blk["end"])
-        del blk["words"]
-    return blocks
+        del blk["words"], blk["say"]
+    return blocks, credits
 
 
 def chapters(script: dict, spans) -> list[tuple[float, str]]:
@@ -146,11 +148,13 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     W, H = L["W"], L["H"]
     scenes = script["scenes"]
 
-    track, spans, words = voice.narrate(scenes, out_dir / "takes")
-    limit = 178 if kind == "short" else 12 * 60
-    if len(track) / voice.SR > limit:  # Shorts can be up to 3 minutes: speak a little faster to fit
+    own = out_dir / "owner_voice.wav"  # the owner narrated it (pipeline.save_recording)
+    track, spans, words = voice.narrate(scenes, out_dir / "takes", own if own.exists() else None)
+    script["voice"] = "owner" if own.exists() else "ai"
+    limit = 178 if kind == "short" else 5 * 60  # owner (2026-10-30): every video 5 minutes at most
+    if len(track) / voice.SR > limit:  # speak a little faster to fit (only a touch for longs: it must stay natural)
         factor = len(track) / voice.SR / (limit - 0.5)
-        if factor > 1.2:
+        if factor > (1.2 if kind == "short" else 1.06):
             raise ValueError(f"narration is {len(track) / voice.SR:.0f}s, too long for a {kind}")
         track = voice.stretch(track, factor)
         spans = [(a / factor, b / factor) for a, b in spans]
@@ -158,7 +162,7 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     duration = len(track) / voice.SR + TAIL
     n_frames = math.ceil(duration * fps)
 
-    blocks = _blocks(scenes, spans, words, duration)
+    blocks, script["image_credits"] = _blocks(scenes, spans, words, duration, out_dir)
     events = [(b["start"] - 0.12, "whoosh", 0.35) for b in blocks[1:]]
     events += [(t, "pop", 0.18) for b in blocks for t in b["reveals"][:6]]
     sf.write(out_dir / "voice.wav", voice.level(track), voice.SR)
@@ -175,6 +179,7 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
         "title": script["title"],
         "layout": {k: L[k] for k in ("stage", "thoma", "captions_y", "caption_size", "brand")},
         "blocks": blocks, "captions": _captions(words) if L["captions_y"] else [],
+        "chapters": script["chapters"],
         "thoma": thoma,
         "icons": {name: visuals.icon_svg(name) for name in used},
     }
@@ -198,7 +203,7 @@ def preview(script: dict, kind: str, out_dir: Path, times: list[float] | None = 
             page.screenshot(path=str(p))
             paths.append(p)
         if kind == "long":
-            thumbnail(page, script, out_dir / "thumbnail.jpg")
+            thumbnail(page, script, out_dir / "thumbnail.jpg", _thumb_photo(data["blocks"]))
     finally:
         browser.close()
         pw.stop()
@@ -258,7 +263,7 @@ def render(script: dict, kind: str, out_dir: Path) -> Path:
         if proc.wait() != 0:
             raise RuntimeError("ffmpeg failed")
         if kind == "long":
-            thumbnail(page, script, out_dir / "thumbnail.jpg")
+            thumbnail(page, script, out_dir / "thumbnail.jpg", _thumb_photo(data["blocks"]))
         else:  # the cover frame doubles as the Reel cover image
             page.evaluate("t => seek(t)", 0.0)
             page.screenshot(path=str(out_dir / "cover.jpg"), type="jpeg", quality=92)
@@ -273,12 +278,18 @@ def render(script: dict, kind: str, out_dir: Path) -> Path:
     return out
 
 
-def thumbnail(page, script: dict, path: Path):
-    """1280x720 thumbnail: big text, one glowing icon, Thoma the imp reacting."""
+def _thumb_photo(blocks) -> str | None:
+    """The video's first real photo (a person or product on the thumbnail beats an icon), if it has one."""
+    return next((b["visual"]["src"] for b in blocks if b["visual"].get("type") in ("photo", "quote")
+                 and b["visual"].get("src")), None)
+
+
+def thumbnail(page, script: dict, path: Path, photo: str | None = None):
+    """1280x720 thumbnail: big text, a real photo (or one glowing icon), Thoma the imp reacting."""
     first = visuals.normalize(script["scenes"][0].get("visual"))
     text = script.get("thumb_text") or script["title"].split("?")[0] + "?"
     icon = visuals.fix_icon(script.get("thumb_icon") or first.get("icon") or "sparkles")
     page.set_viewport_size({"width": 1280, "height": 720})
     page.goto((WEB / "thumb.html").as_uri())
-    page.evaluate("d => draw(d)", {"text": text, "icon": visuals.icon_svg(icon)})
+    page.evaluate("d => draw(d)", {"text": text, "icon": visuals.icon_svg(icon), "photo": photo})
     page.screenshot(path=str(path), type="jpeg", quality=92)

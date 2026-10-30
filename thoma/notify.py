@@ -1,4 +1,5 @@
 """Telegram: send updates and preview videos to the owner, read approve/reject replies."""
+import json
 import logging
 import re
 import subprocess
@@ -74,6 +75,29 @@ def send_photo(path: Path, text: str = "", reply_to: int | None = None):
         _api("sendDocument", data=data, files={"document": (path.name, f, "image/jpeg")})
 
 
+def send_text_file(name: str, content: str, text: str) -> int | None:
+    """A text file (e.g. the reading sheet for the owner's recording). Returns the message id."""
+    res = _api("sendDocument", data={"chat_id": secret("TELEGRAM_CHAT_ID"), "caption": text[:1000]},
+               files={"document": (name, content.encode(), "text/plain")})
+    if not res or not res.get("ok"):
+        send(text + "\n\n" + content[:3000])
+        return None
+    return res["result"]["message_id"]
+
+
+def download(file_id: str, path: Path) -> Path:
+    """A file the owner sent (bots can fetch up to 20 MB)."""
+    res = _api("getFile", data={"file_id": file_id})
+    if not res or not res.get("ok"):
+        raise RuntimeError("Telegram would not hand over the file (bots can only fetch files up to 20 MB)")
+    r = httpx.get(f"https://api.telegram.org/file/bot{secret('TELEGRAM_BOT_TOKEN')}/{res['result']['file_path']}",
+                  timeout=300)
+    if r.status_code != 200:  # (never raise_for_status here: its message would carry the bot token)
+        raise RuntimeError(f"Telegram file download failed: HTTP {r.status_code}")
+    path.write_bytes(r.content)
+    return path
+
+
 def commands() -> list[tuple[str, str]]:
     """New '/approve 12', '/reject 12 reason' messages from the owner's chat."""
     offset = db.get_kv("telegram_offset", 0)
@@ -86,6 +110,15 @@ def commands() -> list[tuple[str, str]]:
         msg = u.get("message") or {}
         if str(msg.get("chat", {}).get("id")) != secret("TELEGRAM_CHAT_ID"):
             continue  # ignore anyone else who finds the bot
+        audio = msg.get("voice") or msg.get("audio") or msg.get("document") or {}
+        if audio and (msg.get("voice") or msg.get("audio") or str(audio.get("mime_type", "")).startswith("audio/")
+                      or re.search(r"\.(m4a|mp3|wav|ogg|opus|aac|flac)$", audio.get("file_name", ""), re.I)):
+            # the owner's narration: a voice note or an audio file, as a reply to the reading sheet or with "#12"
+            out.append(("recording", json.dumps({"file_id": audio["file_id"], "size": audio.get("file_size", 0),
+                                                 "name": audio.get("file_name", "voice.ogg"),
+                                                 "caption": msg.get("caption", ""),
+                                                 "reply_to": (msg.get("reply_to_message") or {}).get("message_id")})))
+            continue
         parts = (msg.get("text") or "").strip().lstrip("/").split(maxsplit=1)
         if parts:
             out.append((parts[0].lower(), parts[1] if len(parts) > 1 else ""))

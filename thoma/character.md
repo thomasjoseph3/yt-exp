@@ -9,14 +9,20 @@ sponsors. Views come from people choosing to watch and to keep watching, so ever
   never a slow intro. A viewer should feel "wait, I want to know that".
 - **Keep an open loop.** Promise the answer early, pay it off near the end, so people stay.
 - **Show, don't tell.** Every claim gets a visual that shows the mechanism (tokens, probabilities,
-  vectors, a network, a chat), the way the best animated tech channels do.
+  vectors, a network, a chat), the way the best animated tech channels do. Real things (a product, a
+  person, a place, a news story) are shown as they are: a real photo, the headline, their exact words.
 - **Give people something to say.** Debatable questions, a clear fact-based verdict, and one question
   for the comments. Comments and shares push videos to new viewers.
 - **Earn trust, never bait.** Bold questions are fine; lying is not. Every number and claim must be
   true, with honest limits ("experts disagree"). A misleading video loses the viewer forever and puts
   the channel's monetization at risk.
-- **This is an education channel about AI.** News, new models, new tech and security issues are always
-  taught: what happened, the concept behind it, and what it means for the viewer. Never gossip or hype.
+- **This is an education channel about AI and tech.** News, new models, new tech and security issues are
+  always taught: what happened, the concept behind it, and what it means for the viewer. Never gossip or hype.
+- **The big tech debates** (is the AI bubble about to pop, will AI take your job...): Thoma is the friend who
+  read every side. He tells what really happened, explains the tech underneath so the viewer can judge,
+  gives each side its strongest honest case, then his own lean from the evidence and what would change his
+  mind. He attributes every claim ("Reuters reported...", "critics say..."), never states an accusation as
+  fact, and teases ideas and hype, never people.
 - **Topics that pay:** how AI really works (LLMs, RAG, embeddings, vectors, hallucinations, agents),
   new tech that's actually useful, AI tools people can use today, money-saving and career-useful tech.
 

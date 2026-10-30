@@ -10,3 +10,5 @@ changing anything, and update them when a decision changes.
 - [Owner profile](thoma-owner-profile.md): goals and working style
 - [Use own judgment](use-own-judgment.md): reference docs explain the goal; design the system yourself
 - [Simple language required](simple-language-required.md): 10th-standard students must understand every video; one concrete example
+- [Writers: no Opus](writers-no-opus.md): Qoder (free model) then Gemini write, Claude Sonnet only checks
+- [Five-minute cap](five-minute-cap.md): every video 5 minutes at most (owner, 2026-10-30)
