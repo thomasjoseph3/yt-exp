@@ -1,0 +1,220 @@
+{
+ "title": "Fast charging explained: why your phone slows near the end",
+ "description": "Fast charging can fill a dead phone battery in under 25 minutes, but how does it actually work? This short explains the simple physics behind charging speed, why your phone deliberately slows down near full — usually around 80% — and why your charger, cable and phone chip all have to match. You'll also see what modern phones do overnight to protect battery health. No jargon: one equation and one analogy that make it click.",
+ "tags": [
+  "fast charging",
+  "how fast charging works",
+  "fast charging explained",
+  "why charging slows at 80",
+  "phone battery charging",
+  "watts volts amps explained",
+  "battery charging phases",
+  "does fast charging damage battery",
+  "usb c cable fast charging",
+  "phone charging chip",
+  "charging speed explained",
+  "battery health tips"
+ ],
+ "hashtags": [
+  "fastcharging",
+  "phonebattery",
+  "techexplained",
+  "chargingtips",
+  "batteryhealth"
+ ],
+ "thumb_text": "0% to 100 in *25 min*",
+ "thumb_icon": "zap",
+ "pinned_comment": "How many minutes did you guess for a full 100W charge? Drop your number below.",
+ "terms": [
+  {
+   "term": "Watts",
+   "scene": 3,
+   "plain": "energy flowing into the battery every second"
+  },
+  {
+   "term": "Volts",
+   "scene": 3,
+   "plain": "how hard the charger pushes"
+  },
+  {
+   "term": "Amps",
+   "scene": 3,
+   "plain": "how much charge flows each second"
+  },
+  {
+   "term": "chip",
+   "scene": 7,
+   "plain": "a tiny part in your phone that controls charging"
+  }
+ ],
+ "scenes": [
+  {
+   "say": "Guess how many minutes a 100W charger needs to go from dead to full. Take a guess.",
+   "mood": "think",
+   "visual": {
+    "type": "image",
+    "query": "smartphone dead battery charging cable",
+    "caption": "0% to 100% in *how long*?",
+    "kind": "photo"
+   }
+  },
+  {
+   "say": "Under 25 minutes. And a standard charger from five years ago? Nearly three hours.",
+   "mood": "wow",
+   "visual": {
+    "type": "stat",
+    "value": "Under 25 min",
+    "label": "100W charger, 4,500 mAh battery"
+   }
+  },
+  {
+   "say": "One equation: Watts equals Volts times Amps. Volts is how hard it pushes; Amps is how much charge flows each second. Together, that's Watts — energy flowing each second.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Watts = *Volts* × Amps",
+    "sub": "energy flowing in every second"
+   }
+  },
+  {
+   "say": "An old charger does 5 Watts. A fast one pushes 27 or 100. More watts, more energy each second.",
+   "mood": "point",
+   "visual": {
+    "type": "compare",
+    "heading": "More watts, more energy",
+    "left": {
+     "label": "Old charger",
+     "icon": "plug",
+     "items": [
+      "5V × 1A",
+      "= 5 Watts"
+     ]
+    },
+    "right": {
+     "label": "Fast charger",
+     "icon": "zap",
+     "items": [
+      "9V × 3A = 27W",
+      "20V × 5A = 100W"
+     ]
+    }
+   }
+  },
+  {
+   "say": "Here's the trick — your battery changes behavior around 80%. Think of a bicycle tyre: first 30 pumps fly in, last 10 push back.",
+   "mood": "talk",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Pumping a tyre",
+     "icon": "gauge"
+    },
+    "right": {
+     "label": "Charging a phone",
+     "icon": "smartphone"
+    },
+    "note": "First pumps easy — last ones push back"
+   }
+  },
+  {
+   "say": "Inside the battery, near full, forcing charge in builds heat, and heat ages it — so the phone eases off. Usually near 80%, some phones wait till 85 or 90.",
+   "mood": "wow",
+   "visual": {
+    "type": "steps",
+    "heading": "Inside the battery",
+    "items": [
+     {
+      "text": "Near full: forcing charge builds heat",
+      "icon": "flame"
+     },
+     {
+      "text": "Heat ages it, so the phone eases off",
+      "icon": "shield-check"
+     },
+     {
+      "text": "Usually near 80%; some 85–90%",
+      "icon": "gauge"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Fast charging needs three things: the charger, the cable, and a tiny chip in your phone that controls charging.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "Fast charging needs three things",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Fast charger",
+      "icon": "plug"
+     },
+     {
+      "id": "b",
+      "label": "Cable",
+      "icon": "link"
+     },
+     {
+      "id": "c",
+      "label": "Charging chip",
+      "icon": "microchip",
+      "sub": "controls charging"
+     }
+    ]
+   }
+  },
+  {
+   "say": "They compare speeds. Like a relay team, the slowest sets the pace — a cheap cable limits a 100W charger.",
+   "mood": "talk",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Relay team",
+     "icon": "users"
+    },
+    "right": {
+     "label": "Charger + cable + chip",
+     "icon": "zap"
+    },
+    "note": "Slowest handoff sets the pace"
+   }
+  },
+  {
+   "say": "Will fast charging wreck my battery? Not with normal use. Many phones learn your routine — they hold 80% overnight, then finish before you wake.",
+   "mood": "think",
+   "visual": {
+    "type": "compare",
+    "heading": "Fast charging and battery health",
+    "left": {
+     "label": "Fast charging",
+     "icon": "zap",
+     "items": [
+      "Normal use is fine"
+     ]
+    },
+    "right": {
+     "label": "Modern overnight charging",
+     "icon": "clock",
+     "items": [
+      "Hold near 80% overnight",
+      "Full before you wake"
+     ]
+    }
+   }
+  },
+  {
+   "say": "Fast charging is fine — the slowest link sets the pace. Drop your guess. Thoma out!",
+   "mood": "wave",
+   "visual": {
+    "type": "takeaway",
+    "text": "Fast charging is *fine* — the slowest link sets the pace"
+   }
+  }
+ ],
+ "writer": "qoder",
+ "format": "guess",
+ "chapters": [],
+ "music": "Fluffing a Duck"
+}

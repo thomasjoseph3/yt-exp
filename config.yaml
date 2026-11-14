@@ -3,7 +3,7 @@
 channel:
   name: "Thoma Explains"
   timezone: "Asia/Kolkata"
-  youtube_handle: ""        # e.g. "@ThomaExplains" once the channel exists: adds a subscribe link to descriptions
+  youtube_handle: "@ThomaTeaches"   # adds a subscribe link to the IG/FB captions
 
 # Script writers, tried in order. Only Qoder and Claude write content: if both are unavailable
 # (limits reached, offline), the studio waits and retries on the next tick instead of using a
@@ -12,25 +12,23 @@ channel:
 #   claude_cli : your Claude subscription through `claude -p`
 llm:
   providers:
-    - name: qoder                      # first choice: uses your Qoder credits
-      type: cli
-      command: ["qodercli", "-p"]       # npm i -g @qoder-ai/qodercli ; then `qodercli` and /login once
-    - name: claude                     # backup writer, and the checker: your Claude subscription
+    - name: antigravity                # primary writer: Antigravity (`agy`), Gemini-based, read-only plan mode.
+      type: agy
+      command: ["agy"]                 # stream-json over stdin (writer prompt exceeds Windows' arg limit)
+    - name: claude                     # fallback writer: Claude via your subscription (weekly/session limits).
       type: claude_cli
+      # Sonnet, not Opus: clearer, simpler, less jargon for beginners (owner, 2026-10-28).
+      # Opus read as "too technical" for normal viewers. Switch to "opus" only for a hard topic.
       model: sonnet
-    - name: claude-opus                # Claude's strongest model, for gold-standard scripts (`make --llm claude-opus`)
-      type: claude_cli
-      model: opus
-  # Who does which job (tried in order). Qoder writes, Claude checks every script; Claude's notes go back
-  # to Qoder for the rewrite, and each check is logged (`thoma lessons`) so recurring mistakes get fixed
-  # in the prompts. `thoma make ... --llm <name>` puts one provider on every job for that video.
-  roles:
-    research: [qoder, claude]
-    write: [qoder, claude]
-    review: [claude, qoder]
-    triage: [qoder, claude]
+    - name: qoder                      # fallback writer if Claude is unavailable: uses your Qoder credits
+      type: cli
+      # -p print mode; --tools "" keeps it a pure text generator (no agentic file ops) and
+      # --permission-mode dont_ask stops it hanging on a permission prompt that can't be answered.
+      command: ["qodercli", "-p", "--tools", "", "--permission-mode", "dont_ask", "--no-session-persistence"]
+  # Qoder-only setup: Qoder does every job, including reviewing its own scripts. With no providers
+  # listed, every job falls back to `providers` above, so no `roles` block is needed.
   # After a provider fails, skip it for this many minutes before trying it again.
-  cooldown_minutes: 60
+  cooldown_minutes: 5
 
 # Where ideas come from. These channels are mined for topics and facts only: Thoma
 # never reuses their words, visuals or audio (writer.py blocks copied phrasing).
@@ -42,6 +40,22 @@ sources:
       channel_id: UCzCsyvyrq38R6TnztEzOmgg
     - name: Fireship
       channel_id: UCsBjURrPoezykLs9EqgamOA
+  # Emerging / viral tech from the wider web, so the channel rides what is trending, not just the
+  # three channels above. Each item is run through the SAME beginner-education filter
+  # (ideas.TRIAGE_SYSTEM): only tech/AI topics a 10th-grader can be taught in one video survive;
+  # round-ups, memes, ads, opinion and non-tech are dropped, and fresh news jumps the queue.
+  # Any RSS 2.0 or Atom feed works. hnrss points= keeps only stories that already went viral.
+  trending_feeds:
+    - name: Hacker News
+      url: https://hnrss.org/frontpage?points=150
+    - name: The Verge
+      url: https://www.theverge.com/rss/index.xml
+    - name: Ars Technica
+      url: https://feeds.arstechnica.com/arstechnica/index
+    - name: MIT Tech Review AI
+      url: https://www.technologyreview.com/topic/artificial-intelligence/feed
+    - name: Dev.to                     # vibe coding, AI dev tools, new coding practices
+      url: https://dev.to/feed
   refresh_hours: 6
 
 # AI tool videos: "tool spotlight" Shorts and "how to use" tutorials, from Product Hunt's AI feed
@@ -62,9 +76,9 @@ ai_tools:
 # Analytics -> Audience -> "When your viewers are on YouTube".
 schedule:
   publish_times:
-    short: ["19:30"]            # add "07:30" for 2 Shorts a day once Qoder's scripts are reliably good
+    short: ["07:30", "13:00", "19:30"]   # 3 Shorts/day: 07:30 IST (US evening) + 13:00 (global midday) + 19:30 IST (India evening)
     long: ["06:30"]
-  # Quality over quantity: 3 long videos a week (add a 4th day once quality holds), 1 Short a day.
+  # Quality over quantity: 3 long videos a week (add a 4th day once quality holds), 2 Shorts a day.
   long_days: [tue, thu, sat]
   # A week ahead: run the daemon one night and it makes the whole week (3 long + 7 Shorts, ~6 hours),
   # each one comes to Telegram, and /approve puts it in the next free slot. /plan shows the calendar.
@@ -80,7 +94,7 @@ publish:
   #          gets the next free slot.
   # auto   : finished videos take the next free slot automatically; you get them on Telegram
   #          and can /reject (or cancel in the YouTube Studio app) before they go live.
-  mode: approve
+  mode: auto
   # Google's API audit lifts the "uploads stay private" lock. Until then, set the schedule in
   # the YouTube Studio app yourself (the Telegram message tells you the time). Then set true.
   youtube_audited: false

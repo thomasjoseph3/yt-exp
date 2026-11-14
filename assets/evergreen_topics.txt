@@ -67,3 +67,58 @@ Why do AI models get worse at some things after an update?
 What is an open-weight AI model?
 How do AI image detectors work, and can they be fooled?
 What is an AI watermark?
+
+# Vibe coding, AI dev tools and new coding practices (beginner-friendly, high-click)
+What is vibe coding?
+How do people build apps just by chatting with AI?
+What is Cursor, the AI code editor?
+What is GitHub Copilot, and how does it help you code?
+How do AI coding agents actually write code?
+What is "prompt to app"?
+Can you build a real app with no coding experience using AI?
+What is Claude Code, and what can it do?
+What is an IDE, in plain words?
+What is Git, and why do developers love it?
+What is version control, explained simply?
+What is an API, and how do you call one?
+What is the terminal, and why do coders use it?
+What is "clean code", and why does it matter?
+What is code review, and how does AI change it?
+What is debugging, and how do you get good at it?
+What is test-driven development?
+What is a framework vs a library?
+What is deploying an app, step by step?
+What is open source, and how do you contribute?
+Is vibe coding making developers lazy, or faster?
+Will AI coding tools replace junior developers?
+What is the difference between frontend and backend?
+What is a bug vs a feature, really?
+
+# How real-world tech works, and the AI inside it
+How does a self-driving car see the road?
+How does Tesla Autopilot actually work?
+What's the difference between driver assistance and a truly self-driving car?
+How do flying cars (eVTOL air taxis) actually fly?
+How do delivery drones find their way to your door?
+How does a drone stay perfectly stable in the wind?
+How does a robot vacuum map and clean your home?
+How do electric car batteries actually work?
+Why does fast charging fill an EV battery so quickly?
+How does a self-driving car decide when to brake?
+How does adaptive cruise control keep its distance?
+How does a car read traffic signs and lane markings?
+How does lidar let a car see the world in 3D?
+How does radar help a car see through fog and rain?
+How do self-driving cars avoid pedestrians?
+How does face unlock recognise your face in a split second?
+How does a smart doorbell know a person from a passing car?
+How do factory robot arms learn to do a job?
+How do humanoid robots keep their balance while walking?
+How does GPS know exactly where you are?
+How does a rocket land itself upright?
+How does an autopilot fly a passenger plane?
+How does a phone camera use AI to take better photos?
+How does a self-checkout know what you put in the bag?
+How does noise cancelling in earbuds silence the world?
+How does a smartwatch measure your heart rate?
+How do warehouse robots pick the right box every time?

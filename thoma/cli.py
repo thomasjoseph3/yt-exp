@@ -38,12 +38,15 @@ def main():
     sub.add_parser("lessons", help="what the checker keeps catching in the writer's drafts (to improve the prompts)")
     sub.add_parser("test-llm", help="check which LLM providers answer")
     sub.add_parser("auth-youtube", help="sign in to YouTube (once)")
+    p = sub.add_parser("analytics", help="channel growth report (views, watch-hours, retention per video)")
+    p.add_argument("--days", type=int, default=28)
     a = ap.parse_args()
 
     cfg()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s",
                         handlers=[logging.StreamHandler(),
-                                  RotatingFileHandler(DATA / "studio.log", maxBytes=5 << 20, backupCount=3)])
+                                  RotatingFileHandler(DATA / "studio.log", maxBytes=5 << 20, backupCount=3,
+                                                      encoding="utf-8")])
     for name in ("httpx", "httpx2", "httpcore"):  # request URLs carry API keys and the Telegram token
         logging.getLogger(name).setLevel(logging.WARNING)
     from . import db, ideas, pipeline
@@ -55,14 +58,14 @@ def main():
     elif a.cmd == "make":
         if a.llm:
             cfg()["llm"]["roles"] = {r: [a.llm] for r in ("research", "write", "review", "triage")}
-        script = json.load(open(a.script)) if a.script else None
+        script = json.load(open(a.script, encoding="utf-8")) if a.script else None
         vid = pipeline.make(a.kind, a.idea, script)
         print(f"#{vid} ready: {db.video(vid)['path']}")
     elif a.cmd == "preview":
         from . import render
         from .config import OUT
         times = [float(x) for x in a.at.split(",")] if a.at else None
-        for p in render.preview(json.load(open(a.script)), a.kind, OUT / "preview", times):
+        for p in render.preview(json.load(open(a.script, encoding="utf-8")), a.kind, OUT / "preview", times):
             print(p)
     elif a.cmd == "approve":
         db.update_video(a.id, status="approved")
@@ -105,3 +108,6 @@ def main():
     elif a.cmd == "auth-youtube":
         from .publish import youtube
         print("signed in as:", youtube.auth())
+    elif a.cmd == "analytics":
+        from .publish import youtube
+        print(youtube.report(a.days))

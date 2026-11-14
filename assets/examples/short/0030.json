@@ -1,0 +1,249 @@
+{
+ "title": "How does a robot vacuum map your home? (explained simply)",
+ "description": "How does a robot vacuum map your home on its very first run? This short explains SLAM — the technology that lets robot vacuums build a live floor plan as they clean. You'll see why counting wheel turns alone isn't enough, how a spinning laser measures walls and furniture in real time, and why glass still catches these robots off guard. No jargon, just the real mechanism behind the floor plan on your phone.",
+ "tags": [
+  "robot vacuum mapping",
+  "how robot vacuum works",
+  "robot vacuum SLAM",
+  "LiDAR robot vacuum",
+  "Roomba mapping explained",
+  "how does robot vacuum navigate",
+  "robot vacuum floor plan",
+  "SLAM explained simply",
+  "robot vacuum sensors",
+  "occupancy grid explained",
+  "robot vacuum technology",
+  "smart vacuum mapping",
+  "robotic vacuum cleaner AI",
+  "how does a robot vacuum work"
+ ],
+ "hashtags": [
+  "robotvacuum",
+  "smarthome",
+  "AIexplained",
+  "howdoesitwork",
+  "robotics"
+ ],
+ "thumb_text": "It *maps* your home",
+ "thumb_icon": "map-pin",
+ "pinned_comment": "Has your robot vacuum ever gotten confused after you rearranged the furniture? What did it do?",
+ "terms": [
+  {
+   "term": "LiDAR",
+   "scene": 4,
+   "plain": "fires laser pulses in every direction, thousands per second; the pulse travels at a known speed so return time tells it exactly how far each wall is"
+  },
+  {
+   "term": "SLAM",
+   "scene": 6,
+   "plain": "it senses, estimates position, then corrects itself — like spotting a familiar corner in a mall — and repeats; that loop is what constantly fights drift"
+  }
+ ],
+ "scenes": [
+  {
+   "say": "Your robot vacuum maps your entire home and finds its way back to the dock. How does it know where everything is?",
+   "mood": "wow",
+   "visual": {
+    "type": "image",
+    "query": "robot vacuum cleaning living room",
+    "caption": "How does it *know* the layout?",
+    "kind": "photo"
+   }
+  },
+  {
+   "say": "Here's the paradox: to map the room it needs to know where it is, but to know that it needs the map. Like drawing a map while lost in a dark room.",
+   "mood": "think",
+   "visual": {
+    "type": "diagram",
+    "layout": "cycle",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Build the map",
+      "icon": "map-pin"
+     },
+     {
+      "id": "b",
+      "label": "Know position",
+      "icon": "compass"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b",
+      "label": "needs"
+     },
+     {
+      "from": "b",
+      "to": "a",
+      "label": "needs"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Counting wheel turns seems like a fix. But one slippery tile, the count drifts. Errors pile up and the robot quickly loses track of where it is.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Count turns",
+      "icon": "cog",
+      "sub": "rotations tracked"
+     },
+     {
+      "id": "b",
+      "label": "Position guess",
+      "icon": "map-pin",
+      "sub": "close at first"
+     },
+     {
+      "id": "c",
+      "label": "Errors grow",
+      "icon": "triangle-alert",
+      "sub": "drifts off fast"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "say": "So instead it fires laser pulses in every direction — that's LiDAR — thousands per second. The pulse travels at a known speed, so return time tells it exactly how far each wall is.",
+   "mood": "wow",
+   "visual": {
+    "type": "diagram",
+    "layout": "hub",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "LiDAR",
+      "icon": "target",
+      "sub": "thousands/sec"
+     },
+     {
+      "id": "b",
+      "label": "Near wall",
+      "icon": "zap",
+      "sub": "fast return"
+     },
+     {
+      "id": "c",
+      "label": "Far wall",
+      "icon": "timer",
+      "sub": "slow return"
+     }
+    ],
+    "highlight": "a"
+   }
+  },
+  {
+   "say": "Echo bounces back? Something solid is there. No echo? Clear floor. Each reading marks one small cell on a grid — wall, floor, or not-yet-reached — and the map builds as it moves.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Wall",
+      "icon": "box",
+      "sub": "echo returned"
+     },
+     {
+      "id": "b",
+      "label": "Floor",
+      "icon": "check",
+      "sub": "no echo: clear"
+     },
+     {
+      "id": "c",
+      "label": "Unknown",
+      "icon": "circle-alert",
+      "sub": "not reached yet"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Here's the trick. It senses, estimates position, then — like spotting a familiar corner in a mall — corrects itself. Sense, estimate, correct, repeat. That's SLAM — Simultaneous Localization and Mapping.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "layout": "cycle",
+    "heading": "SLAM",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Sense",
+      "icon": "eye"
+     },
+     {
+      "id": "b",
+      "label": "Estimate",
+      "icon": "map-pin"
+     },
+     {
+      "id": "c",
+      "label": "Correct",
+      "icon": "refresh-cw"
+     },
+     {
+      "id": "d",
+      "label": "Repeat",
+      "icon": "repeat"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "say": "The original Roomba just bounced randomly. Today's robots go row by row — like a farmer plowing a field — and only the live map makes that possible.",
+   "mood": "talk",
+   "visual": {
+    "type": "compare",
+    "heading": "Path planning",
+    "left": {
+     "label": "Roomba 2002",
+     "icon": "shuffle",
+     "items": [
+      "Random bouncing",
+      "No map needed"
+     ]
+    },
+    "right": {
+     "label": "Modern robot",
+     "icon": "route",
+     "items": [
+      "Row by row",
+      "Needs live map"
+     ]
+    }
+   }
+  },
+  {
+   "say": "One thing still fools it: glass. The return beam scatters at the wrong angle — no echo reaches the sensor, so the robot thinks it's open space. <laugh>",
+   "mood": "laugh",
+   "visual": {
+    "type": "bigtext",
+    "text": "Glass: *return beam scatters*",
+    "sub": "No echo = robot thinks: open space"
+   }
+  },
+  {
+   "say": "So your vacuum isn't just cleaning — it's constantly sensing where it is and what's around it. Stay curious. Thoma out!",
+   "mood": "wave",
+   "visual": {
+    "type": "takeaway",
+    "text": "Your vacuum is *constantly solving* — where it is and what's around it"
+   }
+  }
+ ],
+ "writer": "claude",
+ "format": "explainer",
+ "chapters": [],
+ "music": "Carefree"
+}

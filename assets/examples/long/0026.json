@@ -1,0 +1,710 @@
+{
+ "title": "Self-driving car sensors explained: LiDAR, radar and cameras",
+ "description": "Self-driving cars see the road by combining cameras, LiDAR, radar and ultrasonic sensors with a high-definition map — a system called sensor fusion. This explainer shows what each sensor can do, the exact weakness it leaves behind, and how the car covers those gaps. You'll see how LiDAR times laser pulses to build a 3D point cloud, why GPS is too rough on its own, and how the car matches what it sees to its map to know exactly where it is. Then a neural network spots and tracks each object, and a planner decides whether to brake or steer. We finish with the real limits — snow, roadworks, and the difference between Level 2 and Level 4.",
+ "tags": [
+  "self-driving car sensors",
+  "how self-driving cars work",
+  "lidar explained",
+  "radar vs lidar",
+  "sensor fusion",
+  "autonomous cars",
+  "waymo robotaxi",
+  "tesla fsd",
+  "self-driving car cameras",
+  "robotaxi explained",
+  "computer vision cars",
+  "sae levels explained",
+  "how self driving cars see",
+  "ai explained"
+ ],
+ "hashtags": [
+  "SelfDrivingCars",
+  "LiDAR",
+  "AIExplained",
+  "AutonomousVehicles",
+  "SensorFusion"
+ ],
+ "thumb_text": "How a car *sees* the road",
+ "thumb_icon": "eye",
+ "pinned_comment": "Would you ride in a self-driving taxi tomorrow, or does heavy rain change your mind?",
+ "terms": [
+  {
+   "term": "LiDAR",
+   "scene": 7,
+   "plain": "light detection and ranging — Marco Polo with light: shout, time the echo, know the distance"
+  },
+  {
+   "term": "point cloud",
+   "scene": 10,
+   "plain": "a cloud of dots, each with a distance — not a photograph"
+  },
+  {
+   "term": "radar",
+   "scene": 15,
+   "plain": "the same bounce idea, but with radio waves instead of light"
+  },
+  {
+   "term": "ultrasonic sensors",
+   "scene": 17,
+   "plain": "the parking beeper: it feels obstacles within about five metres"
+  },
+  {
+   "term": "sensor fusion",
+   "scene": 18,
+   "plain": "running every sense at once so each covers another's blind spot"
+  },
+  {
+   "term": "neural network",
+   "scene": 21,
+   "plain": "a program trained on millions of tagged dashcam clips"
+  },
+  {
+   "term": "planner",
+   "scene": 22,
+   "plain": "the separate part that chooses brake or steer"
+  },
+  {
+   "term": "HD map",
+   "scene": 23,
+   "plain": "a stored map of lanes and signs, matched to what the car sees"
+  },
+  {
+   "term": "GPS",
+   "scene": 25,
+   "plain": "your phone's satellite fix, off by a few metres"
+  },
+  {
+   "term": "levels zero to five",
+   "scene": 28,
+   "plain": "zero means you drive, five means anywhere — not sold yet"
+  },
+  {
+   "term": "level four",
+   "scene": 29,
+   "plain": "driverless, but only inside mapped cities"
+  },
+  {
+   "term": "level two",
+   "scene": 29,
+   "plain": "the driver must stay ready"
+  }
+ ],
+ "scenes": [
+  {
+   "say": "It's raining, it's dark, and something slides across the road ahead. For half a second, you genuinely don't know what it is.",
+   "mood": "think",
+   "visual": {
+    "type": "image",
+    "query": "rainy night road",
+    "caption": "Your eyes, on a *bad night*",
+    "kind": "photo"
+   }
+  },
+  {
+   "say": "By the end, you'll know the four senses a self-driving car uses to read that road — and why it refuses to trust any one of them alone.",
+   "mood": "point",
+   "visual": {
+    "type": "bigtext",
+    "text": "Four senses. *Zero* blind trust.",
+    "sub": "and one brain tying them together"
+   }
+  },
+  {
+   "say": "I'm Thoma, your friendly neighbourhood tech imp. Let's poke at a self-driving car and see what it's really looking at.",
+   "mood": "talk",
+   "visual": {
+    "type": "title",
+    "text": "How does a car *see*?",
+    "sub": "inside a self-driving car's senses",
+    "icon": "car"
+   }
+  },
+  {
+   "chapter": "The seeing problem",
+   "say": "First, get this straight: a human driver runs on one sense and a lot of guessing — and honestly, we're not that reliable.",
+   "mood": "talk",
+   "visual": {
+    "type": "steps",
+    "heading": "How you drive",
+    "items": [
+     {
+      "text": "Light hits your eyes",
+      "icon": "eye"
+     },
+     {
+      "text": "Brain fills the gaps",
+      "icon": "brain"
+     },
+     {
+      "text": "You guess and steer",
+      "icon": "car"
+     }
+    ]
+   }
+  },
+  {
+   "say": "We blink, we get distracted, and in rain our eyes work with half the information. Yet we still drive. So a machine has to do at least as well.",
+   "mood": "talk",
+   "visual": {
+    "type": "compare",
+    "heading": "The challenge",
+    "left": {
+     "label": "Human driver",
+     "icon": "user",
+     "items": [
+      "One pair of eyes",
+      "Gets tired",
+      "Fooled by glare"
+     ]
+    },
+    "right": {
+     "label": "Self-driving car",
+     "icon": "cpu",
+     "items": [
+      "Cameras",
+      "LiDAR",
+      "Radar",
+      "Ultrasound"
+     ]
+    }
+   }
+  },
+  {
+   "say": "The car's answer isn't one sensor. It's a team: cameras, laser pulses, radio waves and parking beepers, plus a map and a brain to combine them.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "The kit",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "cam",
+      "label": "Cameras",
+      "icon": "camera"
+     },
+     {
+      "id": "lidar",
+      "label": "Laser pulses",
+      "icon": "zap"
+     },
+     {
+      "id": "radar",
+      "label": "Radio waves",
+      "icon": "wifi"
+     },
+     {
+      "id": "sonar",
+      "label": "Parking beepers",
+      "icon": "bell"
+     },
+     {
+      "id": "map",
+      "label": "Map",
+      "icon": "map-pin"
+     },
+     {
+      "id": "brain",
+      "label": "Brain",
+      "icon": "brain"
+     }
+    ],
+    "highlight": "brain"
+   }
+  },
+  {
+   "chapter": "LiDAR: light that measures",
+   "say": "Start with the strangest one. LiDAR — light detection and ranging — is Marco Polo in a pitch-black room.",
+   "mood": "point",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Marco Polo in the dark",
+     "icon": "users"
+    },
+    "right": {
+     "label": "LiDAR",
+     "icon": "zap"
+    },
+    "note": "shout, time the echo, know the distance"
+   }
+  },
+  {
+   "say": "You shout Marco, wait for Polo, and count the milliseconds. Quick reply, close wall. LiDAR does that with light, over a million times every second.",
+   "mood": "talk",
+   "visual": {
+    "type": "stat",
+    "value": "1.3 million",
+    "label": "laser pulses fired per second"
+   }
+  },
+  {
+   "say": "Each pulse bounces off a wall, a car, a child's raincoat — and the car times the return. Do that in every direction and you get a cloud of dots.",
+   "mood": "point",
+   "visual": {
+    "type": "steps",
+    "heading": "One pulse",
+    "items": [
+     {
+      "text": "Fire a pulse",
+      "icon": "zap"
+     },
+     {
+      "text": "It bounces back",
+      "icon": "arrow-right"
+     },
+     {
+      "text": "Time the gap",
+      "icon": "timer"
+     },
+     {
+      "text": "Distance known",
+      "icon": "target"
+     }
+    ]
+   }
+  },
+  {
+   "say": "That's the trick: a 3D point cloud — a cloud of dots, each with a distance, out to 300 metres. No colours, no faces.",
+   "mood": "wow",
+   "visual": {
+    "type": "bigtext",
+    "text": "Just shape and *distance*",
+    "sub": "a point cloud out to 300 m"
+   }
+  },
+  {
+   "say": "In 2012, a long-range LiDAR unit cost about 75,000 dollars. Today, short-range ones cost under 500 — not the same part, but the price of real range is falling fast.",
+   "mood": "wow",
+   "visual": {
+    "type": "stat",
+    "value": "$500",
+    "label": "short-range today; long-range costs far more"
+   }
+  },
+  {
+   "say": "LiDAR even works in pitch darkness, because it brings its own light. But heavy rain and snow scatter the laser, so it can mistake a raindrop for an obstacle.",
+   "mood": "talk",
+   "visual": {
+    "type": "compare",
+    "heading": "LiDAR",
+    "left": {
+     "label": "Loves",
+     "icon": "check",
+     "items": [
+      "Pitch darkness",
+      "Exact distance",
+      "300 m range"
+     ]
+    },
+    "right": {
+     "label": "Hates",
+     "icon": "x",
+     "items": [
+      "Heavy rain",
+      "Snow",
+      "Fog"
+     ]
+    }
+   }
+  },
+  {
+   "chapter": "Cameras, radar, ultrasound",
+   "say": "But LiDAR can't read. Is that light red or green? Cameras handle colour and detail — lane paint, signs, brake lights.",
+   "mood": "point",
+   "visual": {
+    "type": "compare",
+    "heading": "Different jobs",
+    "left": {
+     "label": "LiDAR",
+     "icon": "zap",
+     "items": [
+      "Shape",
+      "Distance",
+      "Works in the dark"
+     ]
+    },
+    "right": {
+     "label": "Cameras",
+     "icon": "camera",
+     "items": [
+      "Colour",
+      "Texture",
+      "Reads signs"
+     ]
+    }
+   }
+  },
+  {
+   "say": "A self-driving car can carry a dozen or more cameras. But point one at the sun, or into deep darkness, and it struggles — headlights help, though not completely.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Colour and detail, until *light* fights back",
+    "sub": "sun, darkness, headlights"
+   }
+  },
+  {
+   "say": "Next, radar. Same bounce idea, but with radio waves instead of light — they push through rain, fog and dust far better than light does, though heavy rain still weakens them.",
+   "mood": "point",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Shouting in fog",
+     "icon": "megaphone"
+    },
+    "right": {
+     "label": "Radar",
+     "icon": "wifi"
+    },
+    "note": "radio pushes through better — not perfectly"
+   }
+  },
+  {
+   "say": "Radar's superpower is speed: it tells you how quickly that truck is closing in. Its weakness is identity — a person, a box and a dog all look like a blob. <laugh>",
+   "mood": "laugh",
+   "visual": {
+    "type": "compare",
+    "heading": "Radar",
+    "left": {
+     "label": "Wins at",
+     "icon": "gauge",
+     "items": [
+      "Closing speed",
+      "Through rain",
+      "Through fog"
+     ]
+    },
+    "right": {
+     "label": "Fails at",
+     "icon": "x",
+     "items": [
+      "What it is",
+      "Small objects",
+      "Fine detail"
+     ]
+    }
+   }
+  },
+  {
+   "say": "The fourth sense is tiny: ultrasonic sensors, the parking beeper. They feel obstacles within about five metres, so they handle slow parking rather than highway speed.",
+   "mood": "talk",
+   "visual": {
+    "type": "stat",
+    "value": "5 m",
+    "label": "how far the parking beeper can feel"
+   }
+  },
+  {
+   "chapter": "Sensor fusion",
+   "say": "Now the real trick: sensor fusion — running every sense at once. The car doesn't pick one; it combines cameras, LiDAR, radar and ultrasonic sensors, each covering another's blind spot.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "Sensor fusion",
+    "layout": "hub",
+    "nodes": [
+     {
+      "id": "fusion",
+      "label": "One picture",
+      "icon": "brain",
+      "sub": "fused in real time"
+     },
+     {
+      "id": "cam",
+      "label": "Cameras",
+      "icon": "camera"
+     },
+     {
+      "id": "lidar",
+      "label": "LiDAR",
+      "icon": "zap"
+     },
+     {
+      "id": "radar",
+      "label": "Radar",
+      "icon": "wifi"
+     },
+     {
+      "id": "sonar",
+      "label": "Ultrasonic sensors",
+      "icon": "bell"
+     }
+    ],
+    "highlight": "fusion"
+   }
+  },
+  {
+   "say": "Rain? Radar still works. Darkness? LiDAR still works. A red light? Cameras still work. The car ends up with one picture built from four witnesses.",
+   "mood": "wow",
+   "visual": {
+    "type": "bigtext",
+    "text": "Four witnesses, *one picture*",
+    "sub": "each sensor covering the others"
+   }
+  },
+  {
+   "chapter": "The AI driver",
+   "say": "But a pile of dots and pixels isn't understanding. Something has to look at that picture and ask: what is that thing, and what will it do next?",
+   "mood": "think",
+   "visual": {
+    "type": "network",
+    "heading": "The AI layer",
+    "layers": [
+     4,
+     6,
+     6,
+     3
+    ],
+    "input": "Sensor picture",
+    "middle": "Neural network",
+    "output": "Objects + motion"
+   }
+  },
+  {
+   "say": "That's a neural network — a program trained on millions of tagged dashcam clips: cyclist, pedestrian, truck. It spots the cyclist, tracks their speed, and predicts their next three seconds.",
+   "mood": "talk",
+   "visual": {
+    "type": "steps",
+    "heading": "How it learns",
+    "items": [
+     {
+      "text": "Watch a dashcam clip",
+      "icon": "video"
+     },
+     {
+      "text": "Check its tag: cyclist",
+      "icon": "check"
+     },
+     {
+      "text": "Learn the pattern",
+      "icon": "settings"
+     },
+     {
+      "text": "Spot, track, predict",
+      "icon": "eye"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Then a separate planner — usually not the same network — decides: brake, or steer around. In some newer cars, one network goes straight from camera images to steering.",
+   "mood": "talk",
+   "visual": {
+    "type": "steps",
+    "heading": "From seeing to acting",
+    "items": [
+     {
+      "text": "Network: what's there",
+      "icon": "eye"
+     },
+     {
+      "text": "Network: where it'll go",
+      "icon": "activity"
+     },
+     {
+      "text": "Planner: brake or steer",
+      "icon": "car"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Then comes the part people forget: memory. The car carries a high-definition map of lanes and signs, and matches what it sees against it to work out exactly where it is.",
+   "mood": "point",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Memorised timetable",
+     "icon": "book-open"
+    },
+    "right": {
+     "label": "HD map",
+     "icon": "map-pin"
+    },
+    "note": "matches what it sees to the map"
+   }
+  },
+  {
+   "say": "Like a student who learned the timetable, it already knows the stop sign is coming. The sensors only handle the surprises — other cars, people, weather.",
+   "mood": "talk",
+   "visual": {
+    "type": "steps",
+    "heading": "Map plus senses",
+    "items": [
+     {
+      "text": "Map: what should be there",
+      "icon": "map-pin"
+     },
+     {
+      "text": "Sensors: what's actually there",
+      "icon": "camera"
+     },
+     {
+      "text": "Difference: what to react to",
+      "icon": "triangle-alert"
+     }
+    ]
+   }
+  },
+  {
+   "say": "GPS? Your phone's satellite fix is off by two to five metres — about a lane. The car treats that as a rough start, then matches the road to its map.",
+   "mood": "think",
+   "visual": {
+    "type": "stat",
+    "value": "2–5 m",
+    "label": "typical GPS error: about one lane on a highway"
+   }
+  },
+  {
+   "chapter": "What still breaks",
+   "say": "So is it solved? Not close. Snow hides lane paint, roadworks move lanes the map never saw, and an unmarked rural road, or a mattress on the highway? Still hard.",
+   "mood": "think",
+   "visual": {
+    "type": "steps",
+    "heading": "Still hard",
+    "items": [
+     {
+      "text": "Snow over lane paint",
+      "icon": "cloud"
+     },
+     {
+      "text": "Temporary roadworks",
+      "icon": "triangle-alert"
+     },
+     {
+      "text": "Unmarked rural roads",
+      "icon": "route"
+     },
+     {
+      "text": "A mattress on the road",
+      "icon": "box"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Here's the myth: the car doesn't see everything. Each sensor has blind spots, so the car scores every object — say, eighty percent sure it's a cyclist, so it slows. Never certain.",
+   "mood": "point",
+   "visual": {
+    "type": "bigtext",
+    "text": "Sure, not *certain*",
+    "sub": "80% sure it's a cyclist → slow down"
+   }
+  },
+  {
+   "say": "Self-driving means different things. Levels zero to five: zero is you, one and two help, three drives sometimes, four is driverless in mapped cities, five is anywhere — not sold yet.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "heading": "Automation levels 0–5",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "l0",
+      "label": "0: you",
+      "icon": "user",
+      "sub": "you drive"
+     },
+     {
+      "id": "l1",
+      "label": "1: help",
+      "icon": "hand",
+      "sub": "assist"
+     },
+     {
+      "id": "l2",
+      "label": "2: help",
+      "icon": "car",
+      "sub": "partial"
+     },
+     {
+      "id": "l3",
+      "label": "3: sometimes",
+      "icon": "eye",
+      "sub": "drives itself"
+     },
+     {
+      "id": "l4",
+      "label": "4: driverless",
+      "icon": "map-pin",
+      "sub": "mapped cities"
+     },
+     {
+      "id": "l5",
+      "label": "5: anywhere",
+      "icon": "flag",
+      "sub": "not sold yet"
+     }
+    ],
+    "highlight": "l5"
+   }
+  },
+  {
+   "say": "Waymo's self-driving taxis run driverless at level four in mapped cities, with tens of millions of miles. Tesla bets on cameras alone, feeding video straight to steering — level two, driver must watch.",
+   "mood": "talk",
+   "visual": {
+    "type": "compare",
+    "heading": "Two bets",
+    "left": {
+     "label": "Waymo",
+     "icon": "map-pin",
+     "items": [
+      "Cameras + LiDAR + radar",
+      "Mapped cities",
+      "Level 4"
+     ]
+    },
+    "right": {
+     "label": "Tesla",
+     "icon": "camera",
+     "items": [
+      "Cameras only",
+      "Video to steering",
+      "Level 2: driver watches"
+     ]
+    }
+   }
+  },
+  {
+   "say": "So a car sees the road by trusting four imperfect senses, never just one — and checking itself every second. Subscribe — a new explainer lands here every day. Stay curious. Thoma out!",
+   "mood": "wave",
+   "visual": {
+    "type": "takeaway",
+    "text": "Four imperfect senses, one brain, *constant doubt*."
+   }
+  }
+ ],
+ "writer": "qoder",
+ "format": "tutorial",
+ "chapters": [
+  [
+   0.0,
+   "Intro"
+  ],
+  [
+   24.3,
+   "The seeing problem"
+  ],
+  [
+   53.2,
+   "LiDAR: light that measures"
+  ],
+  [
+   115.4,
+   "Cameras, radar, ultrasound"
+  ],
+  [
+   170.1,
+   "Sensor fusion"
+  ],
+  [
+   194.8,
+   "The AI driver"
+  ],
+  [
+   259.4,
+   "What still breaks"
+  ]
+ ],
+ "music": "Inspired"
+}

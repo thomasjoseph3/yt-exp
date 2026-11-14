@@ -19,7 +19,8 @@ from ..config import SECRETS_DIR, cfg
 from . import caption
 
 log = logging.getLogger("thoma.youtube")
-SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.force-ssl"]
+SCOPES = ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.force-ssl",
+          "https://www.googleapis.com/auth/yt-analytics.readonly"]
 CLIENT = SECRETS_DIR / "youtube_client.json"
 TOKEN = SECRETS_DIR / "youtube_token.json"
 
@@ -34,20 +35,64 @@ def auth():
                                       authorization_prompt_message="Open this link in your browser:\n{url}\n")
     else:
         creds = flow.run_local_server(port=0)
-    TOKEN.write_text(creds.to_json())
+    TOKEN.write_text(creds.to_json(), encoding="utf-8")
     TOKEN.chmod(0o600)
     me = _service().channels().list(part="snippet", mine=True).execute()["items"][0]
     return me["snippet"]["title"]
 
 
-def _service():
+def _creds():
     if not TOKEN.exists():
         raise RuntimeError("YouTube is not signed in: run `thoma auth-youtube`")
     creds = Credentials.from_authorized_user_file(str(TOKEN), SCOPES)
     if not creds.valid:
         creds.refresh(Request())
-        TOKEN.write_text(creds.to_json())
-    return build("youtube", "v3", credentials=creds, cache_discovery=False)
+        TOKEN.write_text(creds.to_json(), encoding="utf-8")
+    return creds
+
+
+def _service():
+    return build("youtube", "v3", credentials=_creds(), cache_discovery=False)
+
+
+def report(days: int = 28) -> str:
+    """A plain-text growth report from the YouTube Analytics API: channel totals plus the top videos
+    with their retention. Needs the yt-analytics.readonly scope (re-run auth-youtube if it is missing)."""
+    import json as _json
+    from datetime import date, timedelta
+    granted = _json.loads(TOKEN.read_text(encoding="utf-8")).get("scopes", []) if TOKEN.exists() else []
+    if not any("yt-analytics" in s for s in granted):
+        return "Analytics not authorised yet. Re-run `uv run thoma auth-youtube` and approve again (the scope list grew)."
+    from googleapiclient.errors import HttpError
+    creds = _creds()
+    yt = build("youtube", "v3", credentials=creds, cache_discovery=False)
+    ya = build("youtubeAnalytics", "v2", credentials=creds, cache_discovery=False)
+    end, start = date.today(), date.today() - timedelta(days=days)
+    s, e = start.isoformat(), end.isoformat()
+    try:
+        tot = ya.reports().query(ids="channel==MINE", startDate=s, endDate=e,
+            metrics="views,estimatedMinutesWatched,averageViewPercentage,subscribersGained,likes").execute()
+    except HttpError as ex:
+        if "accessNotConfigured" in str(ex) or "has not been used" in str(ex):
+            return ("The YouTube Analytics API isn't enabled on your Cloud project yet. Enable it here, wait "
+                    "~2 min, then retry:\n  https://console.cloud.google.com/apis/library/youtubeanalytics.googleapis.com")
+        raise
+    row = (tot.get("rows") or [[0, 0, 0, 0, 0]])[0]
+    lines = [f"Last {days} days (channel):",
+             f"  views={int(row[0])}  watch-hours={row[1] / 60:.1f}  avg-view={row[2]:.0f}%  "
+             f"subs+={int(row[3])}  likes={int(row[4])}"]
+    vids = ya.reports().query(ids="channel==MINE", startDate=s, endDate=e,
+        metrics="views,estimatedMinutesWatched,averageViewPercentage,averageViewDuration",
+        dimensions="video", sort="-views", maxResults=10).execute()
+    rows = vids.get("rows") or []
+    if rows:
+        titles = {v["id"]: v["snippet"]["title"] for v in
+                  yt.videos().list(part="snippet", id=",".join(r[0] for r in rows)).execute().get("items", [])}
+        lines.append(f"\nTop videos by views (retention = how far the average viewer watches):")
+        for r in rows:
+            lines.append(f"  views={int(r[0]):>5}  retention={r[2]:>4.0f}%  avg={int(r[3]):>3}s  "
+                         f"| {titles.get(r[0], r[0])[:60]}")
+    return "\n".join(lines)
 
 
 def upload(video: Path, script: dict, kind: str, publish_at: datetime | None = None) -> dict:

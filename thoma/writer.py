@@ -7,12 +7,13 @@ import difflib
 import json
 import logging
 import re
+import time
 from pathlib import Path
 
 from . import db, llm, visuals
 
 log = logging.getLogger("thoma.writer")
-CHARACTER = (Path(__file__).parent / "character.md").read_text()
+CHARACTER = (Path(__file__).parent / "character.md").read_text(encoding="utf-8")
 
 FORMATS = {
     # Shorts may run up to 3 minutes; most topics need 60-90 s. Length follows what the topic needs.
@@ -20,23 +21,32 @@ FORMATS = {
               "max_per_visual": 28, "signoff": "thoma out", "spec": (
         "A vertical Short/Reel, usually 60-90 seconds (150-220 spoken words at a relaxed pace); up to 2 minutes "
         "(300 words) only when the idea can't be made clear in less. Never pad. "
-        "Scene 1 is the hook in under 12 words: a surprising question or fact about what the viewer "
-        "will understand. No greeting, no self-introduction. One concept only; if it is abstract, carry it with one "
+        "Scene 1 is the HOOK and it decides everything: on screen in the first 2 seconds, under 12 words, "
+        "the single most surprising question, number or claim about the topic - a pattern interrupt that opens a "
+        "curiosity gap the viewer has to close. The surprise must be in the FIRST spoken words - no wind-up, no "
+        "'have you ever wondered', no context before the punch. Use one of these proven scroll-stopper shapes: "
+        "(a) a myth-bust ('No, incognito mode doesn't hide your browsing'); (b) a bold secret ('Your phone has a "
+        "second brain you never see'); (c) a shocking number ('This happens 500 times a second'); (d) a stinging "
+        "question ('Who is really watching you right now?'); (e) a 'stop doing X' warning. Make the viewer feel they "
+        "will lose something by scrolling past. No greeting, no 'today we'll learn', no slow setup; drop them "
+        "straight into the surprise. For a real-world-tech topic, open on the thing itself with a real photo (the "
+        "car, the drone, the robot, the chip) and a punchy caption. Scene 2 promises the payoff fast ('here's what's "
+        "really going on'). One concept only; if it is abstract, carry it with one "
         "simple everyday example from start to end. One diagram, one 'here's the trick' moment. The last line lands the takeaway, ends with 'Thoma out!', and should flow "
         "back into the hook so the Short loops naturally.")},
-    # 8+ minutes: YouTube only allows mid-roll ads from 8:00, which roughly doubles what a video earns.
-    "long": {"words": (1340, 1600), "target": "1400-1500", "scenes": (45, 85), "max_per_visual": 32, "signoff": "thoma out", "spec": (
-        "A 16:9 deep-dive of 8-9 minutes (1400-1500 spoken words; it must not be shorter, mid-roll ads need 8:00). "
+    # ~5 minutes: tight and punchy like ByteMonk / Apna College. Watchability beats mid-roll ad length.
+    "long": {"words": (650, 950), "target": "750-850", "scenes": (24, 32), "max_per_visual": 32, "signoff": "thoma out", "spec": (
+        "A 16:9 explainer of about 5 minutes (750-850 spoken words). Keep it tight and fast-moving; never pad to fill time. "
         "Scene 1-2 is the hook: what the viewer will finally understand, why it matters to them, and an open "
         "loop ('by the end you'll know why ...'). Scene 3: 'I'm Thoma, your friendly neighbourhood tech imp. Let's "
-        "poke at <topic>.' Then 5-7 chapters that build on each other: the everyday analogy, the real mechanism "
+        "poke at <topic>.' Then 5-6 chapters that build on each other: the everyday analogy, the real mechanism "
         "step by step SHOWN with concept visuals and diagrams (every abstract step gets a simple everyday example; "
-        "skip it where the thing is already concrete), a concrete worked example (code if it is a coding "
-        "topic), the common misconception, what it means in real life and what's new in the field, then the "
-        "takeaway. Every 60-90 seconds re-hook the viewer with a new question or twist ('but here's where it gets "
-        "weird...'). Around the middle, one natural line inviting people to subscribe for a new explainer every "
-        "day (never 'smash the like button'). Pay off the opening loop near the end. Mark 6-9 section starts "
-        "with \"chapter\": \"<=30 chars\" on that scene (YouTube chapters). "
+        "skip it where the thing is already concrete), a concrete worked example (for a coding topic, SHOW real code "
+        "in an editor or terminal, not abstract shapes), the common misconception, what it means in real life and "
+        "what's new in the field, then the takeaway. Every 45-60 seconds re-hook the viewer with a new question or "
+        "twist ('but here's where it gets weird...'). Around the middle, one natural line inviting people to subscribe "
+        "for a new explainer every day (never 'smash the like button'). Pay off the opening loop near the end. Mark "
+        "5-6 section starts with \"chapter\": \"<=30 chars\" on that scene (YouTube chapters). "
         "The last line ends with 'Stay curious. Thoma out!'")},
 }
 
@@ -126,14 +136,14 @@ REVIEW_SYSTEM = """You are a strict editor for a beginner tech channel. Check th
 3. consistency: a line that contradicts an earlier one, or one thing called by different names;
 4. tone: anything condescending, hype-y, or salesy;
 5. visuals: a visual that does not match what is said in that scene, or things on screen never mentioned.
-Only list real problems, each pointing at the scene number. Reply as JSON:
+Only list real problems, each pointing at the scene number, at most 10, most serious first. Reply as JSON:
 {"student_summary": "...", "ok": true|false, "problems": ["scene 3: ...", ...]}"""
 
 # "Does AI think?", "Will AI replace...", "Is ChatGPT...": questions people argue about.
 DEBATE = re.compile(r"^\W*(do|does|did|is|are|can|could|will|would|should)\b(?!.*\bwhat is\b)", re.I)
 GREETINGS = re.compile(r"^\W*(hi|hello|hey|welcome|namaste|what's up)\b", re.I)
 TYPES = {"title", "bigtext", "stat", "diagram", "steps", "compare", "analogy", "code", "keep", "takeaway",
-         "tokens", "predict", "vectors", "network", "chat"}
+         "tokens", "predict", "vectors", "network", "chat", "image"}
 CONCEPT = {"tokens", "predict", "vectors", "network", "chat"}
 # Words a 10th-standard student won't know. Each must be listed in script["terms"] with the scene that
 # explains it in plain words, at most one scene after it is first said (the hook gets 3 scenes).
@@ -361,7 +371,7 @@ def save_example(script: dict, kind: str, vid: int) -> None:
     """An approved script becomes a reference the writer must match (newest 3 per kind are kept)."""
     d = EXAMPLES / kind
     d.mkdir(parents=True, exist_ok=True)
-    (d / f"{vid:04d}.json").write_text(json.dumps(script, indent=1, ensure_ascii=False))
+    (d / f"{vid:04d}.json").write_text(json.dumps(script, indent=1, ensure_ascii=False), encoding="utf-8")
     for old in sorted(d.glob("*.json"))[:-3]:
         old.unlink()
 
@@ -370,7 +380,7 @@ def example(kind: str) -> str:
     files = sorted((EXAMPLES / kind).glob("*.json"))
     if not files:
         return ""
-    s = json.loads(files[-1].read_text())
+    s = json.loads(files[-1].read_text(encoding="utf-8"))
     keep = {k: s[k] for k in ("title", "scenes") if k in s}
     return ("\n\n# A script the owner approved\nMatch its clarity, pace, use of one running example and visual "
             "variety. Do NOT reuse its topic, wording or examples.\n" + json.dumps(keep, ensure_ascii=False))
@@ -537,8 +547,11 @@ def write(idea, kind: str) -> dict:
     spec += f"\nToday's date: {date.today():%B %Y}."
     system = f"{CHARACTER}\n\n# Format\n{spec}\n\n{visuals.SPEC}\n\n{SCRIPT_SHAPE}{example(kind)}"
     lo, hi = FORMATS[kind]["words"]
+    slo, shi = FORMATS[kind]["scenes"]
     brief = (f"Topic: {idea['topic']}\nWord budget: aim for {FORMATS[kind]['target']} spoken words in total "
-             f"(hard limits {lo}-{hi}). Count them before replying.\n")
+             f"(hard limits {lo}-{hi}). Count them before replying.\n"
+             f"Scene budget: exactly {slo}-{shi} scenes. Keep every 'say' at 40 words or fewer, and never speak "
+             f"more than 32 words over one visual (change the visual or split the scene).\n")
     if idea["angle"]:
         brief += f"Suggested analogy (use it or find a better one): {idea['angle']}\n"
     if idea["source_title"]:
@@ -577,7 +590,15 @@ def write(idea, kind: str) -> dict:
                        + f"\nThe draft has {words(script)} spoken words; keep it between {lo} and {hi}. Fixes "
                        "must not grow the script: when you add an explanation, cut the same number of words "
                        "elsewhere, and change only the scenes the problems name.")
-        script = repair(llm.ask_json(system, prompt, f"write-{kind}"))
+        try:
+            script = repair(llm.ask_json(system, prompt, f"write-{kind}"))
+        except llm.AllProvidersFailed as e:
+            # output-token limits and provider hiccups come and go; the same call usually lands on a retry
+            log.warning("draft %d not delivered: %s", attempt + 1, str(e)[:160])
+            prompt += "\n\nKeep the reply compact: ONE valid JSON object, no prose outside it, short description."
+            brief += "\nKeep the reply compact: ONE valid JSON object, no prose outside it, short description."
+            time.sleep(15)
+            continue
         script["writer"] = llm.last_provider
         problems = gates(script, kind, idea)
         if problems:
@@ -586,11 +607,20 @@ def write(idea, kind: str) -> dict:
         script["format"] = fmt
         if reviewed:
             return script
-        review = llm.ask_json(REVIEW_SYSTEM, json.dumps(script, ensure_ascii=False), "review")
+        for review_try in range(3):
+            try:
+                review = llm.ask_json(REVIEW_SYSTEM, json.dumps(script, ensure_ascii=False), "review")
+                break
+            except llm.AllProvidersFailed as e:
+                log.warning("review try %d not delivered: %s", review_try + 1, str(e)[:160])
+                time.sleep(15)
+        else:
+            raise llm.AllProvidersFailed("the reviewer never answered")
         log_review(script, kind, idea["topic"], review)
         reviewed = True
         deadline = max(deadline, attempt + 3)
         problems = review.get("problems", []) if not review.get("ok", True) else []
+        problems = problems[:10]  # a 30-point list bloats the rewrite and pushes the model past its output limit
         if not problems:
             return script
         log.info("review asked for fixes: %s (student heard: %s)", problems, review.get("student_summary", ""))

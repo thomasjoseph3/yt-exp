@@ -16,7 +16,7 @@ def _load_env():
     env = ROOT / ".env"
     if not env.exists():
         return
-    for line in env.read_text().splitlines():
+    for line in env.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -30,7 +30,7 @@ def cfg() -> dict:
     _load_env()
     DATA.mkdir(exist_ok=True)
     OUT.mkdir(exist_ok=True)
-    return yaml.safe_load((ROOT / "config.yaml").read_text())
+    return yaml.safe_load((ROOT / "config.yaml").read_text(encoding="utf-8"))
 
 
 def secret(name: str) -> str:

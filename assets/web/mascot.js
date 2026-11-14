@@ -19,8 +19,7 @@ function buildMascot(parent, width) {
     <g class="m-tail">
       <path d="M128 196 C 168 206, 182 168, 166 140 S 176 104, 190 100" fill="none" stroke="${c.ink}" stroke-width="13" stroke-linecap="round"/>
       <path d="M128 196 C 168 206, 182 168, 166 140 S 176 104, 190 100" fill="none" stroke="${c.dark}" stroke-width="7" stroke-linecap="round"/>
-      <path d="M190 100 l-6 -20 l20 6 z M190 100 l-16 -2 l12 -12 z" fill="${c.dark}" stroke="${c.ink}" stroke-width="3" stroke-linejoin="round"
-            transform="rotate(10 190 100)"/>
+      <path d="M219 92 L201 110 L197 98 L194 85 Z" fill="${c.dark}" stroke="${c.ink}" stroke-width="3.5" stroke-linejoin="round"/>
     </g>
     <ellipse cx="100" cy="186" rx="44" ry="40" fill="${c.body}" stroke="${c.ink}" stroke-width="4.5"/>
     <ellipse cx="100" cy="194" rx="26" ry="24" fill="${c.belly}" opacity="0.9"/>

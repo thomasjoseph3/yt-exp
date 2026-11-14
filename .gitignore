@@ -11,6 +11,8 @@ wheels/
 
 # Thoma studio
 .env
+client_secret_*.json
+youtube_*.json
 data/
 out/
 assets/models/

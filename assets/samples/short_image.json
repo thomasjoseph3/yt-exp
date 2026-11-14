@@ -1,0 +1,17 @@
+{"title": "How a self-driving car sees",
+ "description": "How does a self-driving car actually see the road? Thoma the tech imp breaks down the cameras and AI behind it.",
+ "tags": ["self driving car", "how self driving cars work", "autonomous driving", "car ai explained", "ai for beginners"],
+ "hashtags": ["AI", "SelfDriving", "Tech"],
+ "thumb_text": "How a car *sees*", "thumb_icon": "car",
+ "scenes": [
+  {"say": "This car is driving itself down a busy street. So who, or what, is actually watching the road?", "mood": "think",
+   "visual": {"type": "image", "query": "self driving car city street", "caption": "Who's *really* driving?", "kind": "photo"}},
+  {"say": "There is no driver. Just cameras, and a program that learned to understand what they see.", "mood": "talk",
+   "visual": {"type": "bigtext", "text": "No driver. Just *cameras* and code."}},
+  {"say": "Here's the trick. Cameras capture the scene, the AI spots cars and people, then it plans a safe path.", "mood": "wow",
+   "visual": {"type": "diagram", "heading": "How it *sees*", "layout": "row", "nodes": [{"id": "c", "label": "Cameras", "icon": "camera"}, {"id": "a", "label": "AI spots", "icon": "scan-face"}, {"id": "p", "label": "Plan path", "icon": "route"}], "highlight": "a"}},
+  {"say": "Up close, the car is covered in cameras, each one watching a different slice of the world.", "mood": "point",
+   "visual": {"type": "image", "query": "modern car camera sensor close up", "caption": "Eyes in *every direction*", "kind": "photo"}},
+  {"say": "So a self-driving car sees with cameras, and thinks with AI. No magic, just a lot of watching. Thoma out!", "mood": "wave",
+   "visual": {"type": "takeaway", "text": "Cameras to *see*, AI to *decide*."}}
+ ]}

@@ -8,7 +8,6 @@ tick()      one scheduler pass: read owner replies, refresh ideas, make videos f
 Built for a machine that is only on part of the day (e.g. overnight): videos are made
 ahead and uploaded with a release time, and YouTube publishes them at that time by itself.
 """
-import fcntl
 import json
 import logging
 import shutil
@@ -16,6 +15,20 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
+
+try:  # single-run lock: fcntl on Unix, msvcrt on Windows
+    import fcntl
+
+    def _lock_nb(f):
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except ImportError:  # Windows has no fcntl
+    import msvcrt
+
+    def _lock_nb(f):
+        try:
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+        except OSError as e:
+            raise BlockingIOError(str(e)) from e
 
 from . import db, ideas, notify, writer
 from .config import DATA, OUT, cfg
@@ -56,9 +69,9 @@ def make(kind: str, idea_id: int | None = None, script: dict | None = None) -> i
         db.update_video(vid, status="rendering", title=script["title"], script=json.dumps(script, ensure_ascii=False))
         out_dir = OUT / f"{vid:04d}-{kind}"
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False))
+        (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False), encoding="utf-8")
         path = render.render(script, kind, out_dir)  # adds chapter times to the script
-        (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False))
+        (out_dir / "script.json").write_text(json.dumps(script, indent=2, ensure_ascii=False), encoding="utf-8")
         db.update_video(vid, status="ready", path=str(path), script=json.dumps(script, ensure_ascii=False))
         if idea:
             with db.conn() as c:
@@ -92,7 +105,7 @@ def fix(vid: int, feedback: str) -> None:
     kind, script = v["kind"], json.loads(v["script"])
     out_dir = OUT / f"{vid:04d}-{kind}"
     tlj = out_dir / "timeline.json"
-    times = json.loads(tlj.read_text()).get("scenes") if tlj.exists() else None
+    times = json.loads(tlj.read_text(encoding="utf-8")).get("scenes") if tlj.exists() else None
     with db.conn() as c:
         idea = c.execute("SELECT * FROM ideas WHERE id=?", (v["idea_id"],)).fetchone() if v["idea_id"] else None
     remember_feedback(v, "fix", feedback)
@@ -100,9 +113,9 @@ def fix(vid: int, feedback: str) -> None:
     changed = [i for i, (a, b) in enumerate(zip(script["scenes"], new["scenes"]), 1) if a != b]
     changed += list(range(len(script["scenes"]) + 1, len(new["scenes"]) + 1))
     db.update_video(vid, status="rendering", title=new["title"], script=json.dumps(new, ensure_ascii=False))
-    (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False))
+    (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False), encoding="utf-8")
     path = render.render(new, kind, out_dir)
-    (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False))
+    (out_dir / "script.json").write_text(json.dumps(new, indent=2, ensure_ascii=False), encoding="utf-8")
     db.update_video(vid, status="ready", path=str(path), script=json.dumps(new, ensure_ascii=False), publish_at=None)
     note = f"changed scene(s) {', '.join(map(str, changed))}" if changed else "no scene text changed"
     mid = notify.send_file(path, f"#{vid} fixed ({note}): {new['title']}\nReply /approve {vid}, or /fix {vid} ... again")
@@ -328,13 +341,16 @@ def cleanup():
             log.info("cleanup: removed %s", folder.name)
     for f in (OUT / "preview").glob("*"):  # stills from `thoma preview`
         if time.time() - f.stat().st_mtime > 86400:
-            f.unlink()
+            if f.is_dir():                   # preview also leaves takes/ and images/ subdirs
+                shutil.rmtree(f, ignore_errors=True)
+            else:
+                f.unlink(missing_ok=True)
 
 
 def tick():
     lock = (DATA / "tick.lock").open("w")
     try:
-        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _lock_nb(lock)
     except BlockingIOError:
         log.info("another tick is running")
         return

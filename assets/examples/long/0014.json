@@ -1,0 +1,787 @@
+{
+ "title": "Why AI data centers are so controversial",
+ "description": "AI data centers are being built faster than many towns can plan for, and the backlash has become a cross-party political fight. This explainer covers what a data center actually is, why one AI answer takes so much power and water, and who ends up paying for the power lines and the tax breaks. It shows why Texas Senate candidates in both parties now want the sales-tax breaks gone, and gives you four questions to ask if a project is proposed near you. Positions and figures are as reported in late October 2026, before the votes were counted.",
+ "tags": [
+  "ai data centers",
+  "data center controversy",
+  "why ai needs so much power",
+  "data center water use",
+  "ai data center backlash",
+  "data center tax breaks",
+  "ai explained",
+  "data center explained",
+  "ai politics",
+  "power grid",
+  "ai energy use",
+  "2026 midterms",
+  "texas data centers",
+  "local government"
+ ],
+ "hashtags": [
+  "AIDataCenters",
+  "AIExplained",
+  "DataCenters",
+  "TechExplained",
+  "AIInfrastructure"
+ ],
+ "thumb_text": "AI's *hidden bill*",
+ "thumb_icon": "zap",
+ "pinned_comment": "Would you vote yes or no on a data center in your town — and what would you ask for first?",
+ "terms": [
+  {
+   "term": "AC",
+   "scene": 1,
+   "plain": "the air conditioner"
+  },
+  {
+   "term": "data center",
+   "scene": 5,
+   "plain": "a large building full of servers on racks, plus storage, the gear that connects them, and cooling"
+  },
+  {
+   "term": "server",
+   "scene": 5,
+   "plain": "a powerful computer that answers requests"
+  },
+  {
+   "term": "megawatt",
+   "scene": 8,
+   "plain": "roughly what a thousand homes use on average"
+  },
+  {
+   "term": "tax break",
+   "scene": 14,
+   "plain": "a deal where the company skips the sales tax it would normally pay on its equipment"
+  },
+  {
+   "term": "moratorium",
+   "scene": 21,
+   "plain": "a pause — 'wait, let's check first' — not a ban"
+  },
+  {
+   "term": "Senate",
+   "scene": 23,
+   "plain": "the Senate is a national law-making body"
+  },
+  {
+   "term": "Democrat",
+   "scene": 24,
+   "plain": "one of America's two big parties"
+  },
+  {
+   "term": "Republican",
+   "scene": 25,
+   "plain": "the other big party"
+  },
+  {
+   "term": "AI dividend",
+   "scene": 24,
+   "plain": "a slice of tax on AI profits, handed back to the public"
+  },
+  {
+   "term": "super PAC",
+   "scene": 27,
+   "plain": "a committee that can raise and spend huge sums to back candidates, without coordinating with them directly"
+  }
+ ],
+ "scenes": [
+  {
+   "say": "Hottest week of the year. Everyone switches on their AC — the air conditioner — and the grey box on the pole hums. Then it gives out, and the street goes dark.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "One street, one box",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Your house",
+      "icon": "house"
+     },
+     {
+      "id": "b",
+      "label": "Grey box",
+      "icon": "zap",
+      "sub": "on the pole"
+     },
+     {
+      "id": "c",
+      "label": "Whole street dark",
+      "icon": "x"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b"
+     },
+     {
+      "from": "b",
+      "to": "c"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "say": "That box is shared, so one heavy user can mean the whole street splits the upgrade bill — or argues about it. Now picture that upgrade bill for a whole town's power supply.",
+   "mood": "talk",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Street power box",
+     "icon": "zap"
+    },
+    "right": {
+     "label": "A town's power supply",
+     "icon": "plug"
+    },
+    "note": "One shared supply, one big new user"
+   }
+  },
+  {
+   "say": "By the end, you'll know why a town can want the jobs and still say no — and the four questions to ask if one is proposed near you.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "A town can want the jobs and *still say no*",
+    "sub": "Here's why — and what to ask"
+   }
+  },
+  {
+   "say": "I'm Thoma, your friendly neighbourhood tech imp. Let's poke at the grey box, and the buildings making it hum.",
+   "mood": "wave",
+   "visual": {
+    "type": "title",
+    "text": "Data centers, explained",
+    "sub": "Why AI buildings start local fights",
+    "icon": "server"
+   }
+  },
+  {
+   "say": "First, the plain version. A data center is a large building full of servers — powerful computers that answer requests — stacked on racks, plus storage, the gear that connects them, and cooling.",
+   "mood": "point",
+   "chapter": "What is a data center",
+   "visual": {
+    "type": "diagram",
+    "heading": "Inside a data center",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Servers on racks",
+      "icon": "server"
+     },
+     {
+      "id": "b",
+      "label": "Storage",
+      "icon": "hard-drive"
+     },
+     {
+      "id": "c",
+      "label": "Connecting gear",
+      "icon": "network"
+     },
+     {
+      "id": "d",
+      "label": "Cooling",
+      "icon": "droplet"
+     }
+    ]
+   }
+  },
+  {
+   "say": "When you ask an AI something, your question travels to one of those servers. It does the work, sends an answer back — and heats up.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "One question's journey",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Your question",
+      "icon": "message-square"
+     },
+     {
+      "id": "b",
+      "label": "A server",
+      "icon": "server"
+     },
+     {
+      "id": "c",
+      "label": "Answer back",
+      "icon": "arrow-right"
+     },
+     {
+      "id": "d",
+      "label": "Heat",
+      "icon": "flame"
+     }
+    ],
+    "highlight": "d"
+   }
+  },
+  {
+   "say": "So the building needs two things, constantly: power to run the machines, and cooling to stop them cooking themselves. <laugh>",
+   "mood": "laugh",
+   "visual": {
+    "type": "diagram",
+    "heading": "Always hungry",
+    "layout": "hub",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Data center",
+      "icon": "server"
+     },
+     {
+      "id": "b",
+      "label": "Power",
+      "icon": "zap"
+     },
+     {
+      "id": "c",
+      "label": "Cooling",
+      "icon": "droplet"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "say": "Large AI data centers can draw hundreds of megawatts. A megawatt is roughly what a thousand homes use on average — so hundreds of them is the power of 100,000 homes or more.",
+   "mood": "wow",
+   "chapter": "Why AI needs so much power",
+   "visual": {
+    "type": "stat",
+    "value": "100,000+",
+    "label": "homes' worth of power, for one large AI site"
+   }
+  },
+  {
+   "say": "Why so hungry? Because an AI answer isn't fetched from a shelf. The machine builds it fresh, word by word, every single time.",
+   "mood": "think",
+   "visual": {
+    "type": "predict",
+    "prompt": "The best part of the trip was",
+    "options": [
+     {
+      "word": "the",
+      "p": 38
+     },
+     {
+      "word": "our",
+      "p": 27
+     },
+     {
+      "word": "a",
+      "p": 19
+     },
+     {
+      "word": "seeing",
+      "p": 10
+     }
+    ],
+    "pick": 0,
+    "label": "One word at a time, every time"
+   }
+  },
+  {
+   "say": "Inside, one reply can mean billions of tiny sums — like pressing a calculator a billion times for a single paragraph. Each press is simple; there are just so many of them.",
+   "mood": "point",
+   "visual": {
+    "type": "network",
+    "heading": "One reply, step by step",
+    "layers": [
+     3,
+     5,
+     5,
+     2
+    ],
+    "input": "Your question",
+    "middle": "A billion tiny sums",
+    "output": "One word back"
+   }
+  },
+  {
+   "say": "Multiply that by millions of people asking all day, and you need enormous buildings running flat out, day and night.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Millions of asks, warehouses *running all night*"
+   }
+  },
+  {
+   "say": "But here's where it gets weird. The computers are only half the story. The other half is where you put them.",
+   "mood": "wow",
+   "visual": {
+    "type": "bigtext",
+    "text": "The hard part isn't the *computers*. It's where they go."
+   }
+  },
+  {
+   "say": "A company hunting for a site wants cheap land, a fat power line, water, fast internet, and permits that don't drag on for years.",
+   "mood": "point",
+   "chapter": "Where they get built",
+   "visual": {
+    "type": "diagram",
+    "heading": "What a site needs",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Cheap land",
+      "icon": "map-pin"
+     },
+     {
+      "id": "b",
+      "label": "A fat power line",
+      "icon": "zap"
+     },
+     {
+      "id": "c",
+      "label": "Water",
+      "icon": "droplet"
+     },
+     {
+      "id": "d",
+      "label": "Fast internet",
+      "icon": "wifi"
+     },
+     {
+      "id": "e",
+      "label": "Permits",
+      "icon": "clipboard-list"
+     }
+    ]
+   }
+  },
+  {
+   "say": "It also wants a friendly deal. Towns often offer tax breaks — deals where the company skips sales tax on its equipment — hoping the jobs are worth it.",
+   "mood": "talk",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "A discount for a new shop",
+     "icon": "store"
+    },
+    "right": {
+     "label": "A tax break for a company",
+     "icon": "dollar-sign"
+    },
+    "note": "The company pays less tax"
+   }
+  },
+  {
+   "say": "The catch: the town simply collects less tax — and the real question is whether the project would have come anyway.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "The town collects *less tax*",
+    "sub": "Would the project come anyway?"
+   }
+  },
+  {
+   "say": "Meanwhile the neighbours notice the traffic, the noise from those cooling fans, the water — and sometimes a share of the bill for new power lines.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "heading": "What neighbours notice",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Traffic",
+      "icon": "truck"
+     },
+     {
+      "id": "b",
+      "label": "Fan noise",
+      "icon": "megaphone"
+     },
+     {
+      "id": "c",
+      "label": "Water use",
+      "icon": "droplet"
+     },
+     {
+      "id": "d",
+      "label": "New power lines",
+      "icon": "zap"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Why does a computer need water at all? Cooling. Some systems evaporate water to carry heat away, the way sweat cools you down.",
+   "mood": "think",
+   "chapter": "The water problem",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Sweat cooling your skin",
+     "icon": "droplet"
+    },
+    "right": {
+     "label": "Water cooling servers",
+     "icon": "server"
+    },
+    "note": "Evaporation carries the heat away"
+   }
+  },
+  {
+   "say": "It's often cheaper than the cooling your home AC uses, but it drinks the same river or groundwater the town relies on. That's the sore point.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "One source, two users",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "River, groundwater",
+      "icon": "droplet"
+     },
+     {
+      "id": "b",
+      "label": "The data center",
+      "icon": "server"
+     },
+     {
+      "id": "c",
+      "label": "The town",
+      "icon": "house"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b"
+     },
+     {
+      "from": "a",
+      "to": "c"
+     }
+    ],
+    "highlight": "b"
+   }
+  },
+  {
+   "say": "Newer designs reuse the same water again and again instead. It's a real fix — just more expensive, and not everywhere yet.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "heading": "The same water, again and again",
+    "layout": "cycle",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Cool water in",
+      "icon": "droplet"
+     },
+     {
+      "id": "b",
+      "label": "Cools servers",
+      "icon": "server"
+     },
+     {
+      "id": "c",
+      "label": "Warm water",
+      "icon": "flame"
+     },
+     {
+      "id": "d",
+      "label": "Cooled and reused",
+      "icon": "refresh-cw"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b"
+     },
+     {
+      "from": "b",
+      "to": "c"
+     },
+     {
+      "from": "c",
+      "to": "d"
+     },
+     {
+      "from": "d",
+      "to": "a",
+      "label": "same water"
+     }
+    ],
+    "highlight": "d"
+   }
+  },
+  {
+   "say": "So people show up at council meetings. And they don't all want the same thing.",
+   "mood": "talk",
+   "chapter": "The pushback",
+   "visual": {
+    "type": "bigtext",
+    "text": "Same meeting. *Different asks*."
+   }
+  },
+  {
+   "say": "Some ask for a pause. That pause has a name: a moratorium. It's not a ban — it's 'wait, let's check first', and how long it lasts is a choice.",
+   "mood": "talk",
+   "visual": {
+    "type": "compare",
+    "heading": "Pause vs ban",
+    "left": {
+     "label": "Moratorium",
+     "icon": "timer",
+     "items": [
+      "Pause, not a ban",
+      "Sets a date",
+      "Can be renewed"
+     ]
+    },
+    "right": {
+     "label": "Ban",
+     "icon": "x",
+     "items": [
+      "No new projects",
+      "Usually permanent",
+      "A separate law"
+     ]
+    }
+   }
+  },
+  {
+   "say": "Others want conditions: an independent check of the deal, a rule that the company pays for upgrades, or a local vote. A few want it gone.",
+   "mood": "talk",
+   "visual": {
+    "type": "steps",
+    "heading": "What people ask for",
+    "items": [
+     {
+      "text": "Pause and study",
+      "icon": "timer"
+     },
+     {
+      "text": "Independent check",
+      "icon": "search"
+     },
+     {
+      "text": "Company pays",
+      "icon": "zap"
+     },
+     {
+      "text": "A local vote",
+      "icon": "users"
+     }
+    ]
+   }
+  },
+  {
+   "say": "And here's the surprise: this isn't one party's fight. In Texas, days before the 2026 election, both Senate candidates — the Senate is a national law-making body — want the state's sales-tax breaks gone.",
+   "mood": "wow",
+   "chapter": "The politics",
+   "visual": {
+    "type": "compare",
+    "heading": "Texas Senate race, Oct 2026",
+    "left": {
+     "label": "Talarico (D)",
+     "icon": "user",
+     "items": [
+      "End sales-tax breaks",
+      "Water recycling",
+      "AI dividend"
+     ]
+    },
+    "right": {
+     "label": "Paxton (R)",
+     "icon": "user",
+     "items": [
+      "End sales-tax breaks",
+      "Pay for new power",
+      "No rural sites"
+     ]
+    }
+   }
+  },
+  {
+   "say": "Talarico is the Democrat — that's one of America's two big parties. He also wants water recycling and an 'AI dividend': a slice of tax on AI profits, handed back to the public.",
+   "mood": "point",
+   "visual": {
+    "type": "steps",
+    "heading": "Talarico's other asks",
+    "items": [
+     {
+      "text": "Water recycling",
+      "icon": "droplet"
+     },
+     {
+      "text": "AI dividend",
+      "icon": "coins"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Paxton is the Republican — the other big party. He wants data centers to pay for their electricity and for the extra power the state needs — and none of them in the countryside.",
+   "mood": "point",
+   "visual": {
+    "type": "steps",
+    "heading": "Paxton's plan",
+    "items": [
+     {
+      "text": "Pay for electricity",
+      "icon": "zap"
+     },
+     {
+      "text": "Pay for extra power",
+      "icon": "plug"
+     },
+     {
+      "text": "Not in the countryside",
+      "icon": "map-pin"
+     }
+    ]
+   }
+  },
+  {
+   "say": "There's money behind this too. As of October 2026, Leading the Future — backed by tech investors and OpenAI's president — had spent $45 million in a year.",
+   "mood": "talk",
+   "visual": {
+    "type": "stat",
+    "value": "$45M",
+    "label": "Leading the Future's reported spend, one year"
+   }
+  },
+  {
+   "say": "A group like that is a super PAC: a committee that can raise and spend huge sums to back candidates, without coordinating with them directly.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Super PACs: big money, *no direct coordination*"
+   }
+  },
+  {
+   "say": "But the biggest mistake is thinking this is only an environment fight. It's tax money, land, water, local control — and who gets to decide.",
+   "mood": "think",
+   "visual": {
+    "type": "diagram",
+    "heading": "More than an environment fight",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Tax money",
+      "icon": "coins"
+     },
+     {
+      "id": "b",
+      "label": "Land",
+      "icon": "map-pin"
+     },
+     {
+      "id": "c",
+      "label": "Water",
+      "icon": "droplet"
+     },
+     {
+      "id": "d",
+      "label": "Local control",
+      "icon": "users"
+     },
+     {
+      "id": "e",
+      "label": "Who decides",
+      "icon": "scale"
+     }
+    ]
+   }
+  },
+  {
+   "say": "And no, not everyone who objects hates technology. Plenty of people want the project — with conditions.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Not anti-tech. *Pro-conditions*."
+   }
+  },
+  {
+   "say": "If you want more of these plain-English breakdowns, subscribe — there's a new one every day.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "A new explainer *every day*",
+    "sub": "Subscribe for more plain-English tech"
+   }
+  },
+  {
+   "say": "So if one is proposed near you, ask four things: who pays for the power lines, how much water, what the tax break costs, and who signs off.",
+   "mood": "talk",
+   "visual": {
+    "type": "steps",
+    "heading": "Four questions to ask",
+    "items": [
+     {
+      "text": "Who pays for the power lines?",
+      "icon": "zap"
+     },
+     {
+      "text": "How much water, and is it reused?",
+      "icon": "droplet"
+     },
+     {
+      "text": "What does the tax break cost?",
+      "icon": "coins"
+     },
+     {
+      "text": "Who has the final say?",
+      "icon": "scale"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Because the real fight was never about servers. It's about a shared thing getting strained — and who picks up the bill. Stay curious. Thoma out!",
+   "mood": "wave",
+   "visual": {
+    "type": "takeaway",
+    "text": "The fight isn't servers. It's *who pays* when a shared system strains."
+   }
+  }
+ ],
+ "writer": "qoder",
+ "format": "tutorial",
+ "chapters": [
+  [
+   0.0,
+   "Intro"
+  ],
+  [
+   41.9,
+   "What is a data center"
+  ],
+  [
+   72.8,
+   "Why AI needs so much power"
+  ],
+  [
+   121.5,
+   "Where they get built"
+  ],
+  [
+   161.4,
+   "The water problem"
+  ],
+  [
+   189.0,
+   "The pushback"
+  ],
+  [
+   216.1,
+   "The politics"
+  ]
+ ],
+ "music": "Inspired"
+}

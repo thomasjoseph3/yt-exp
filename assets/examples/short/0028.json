@@ -1,0 +1,228 @@
+{
+ "title": "How Does Face Unlock Know It's Really You?",
+ "description": "How does face unlock recognise you in half a second, even in the dark? Your phone never stores a photo of your face — instead it converts your face into a list of about 128 abstract numbers using a neural network trained on millions of faces. This video explains the two phases (setup and every unlock), how phones with a depth sensor fire invisible light to build a 3D map that a flat photo cannot fake, and why your face data never leaves your device. Clear for complete beginners.",
+ "tags": [
+  "face unlock explained",
+  "how face id works",
+  "face recognition technology",
+  "face id vs fingerprint",
+  "phone biometric security",
+  "neural network explained for beginners",
+  "how smartphones work",
+  "face embedding",
+  "depth sensor face unlock",
+  "android face unlock",
+  "3D face unlock",
+  "AI explained simply",
+  "phone security",
+  "how does face unlock work",
+  "biometric authentication"
+ ],
+ "hashtags": [
+  "faceid",
+  "phonetech",
+  "AIexplained",
+  "howdoesitwork",
+  "techexplained"
+ ],
+ "thumb_text": "Your face = *128 numbers*",
+ "thumb_icon": "scan-face",
+ "pinned_comment": "Can a good photo of you unlock your phone — or does it depend on which phone you have?",
+ "terms": [
+  {
+   "term": "neural network",
+   "scene": 4,
+   "plain": "a program trained on millions of faces"
+  }
+ ],
+ "scenes": [
+  {
+   "say": "Your phone unlocked in the dark before your hand even steadied. How does it know this face is yours and not a stranger's?",
+   "mood": "wow",
+   "visual": {
+    "type": "image",
+    "query": "smartphone face unlock dark",
+    "caption": "*Half a second.* How does it really know?",
+    "kind": "photo"
+   }
+  },
+  {
+   "say": "Here's the trick — it never stores a photo. It stores about 128 abstract numbers, none of them with human-readable names.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Not a photo — *128 numbers*",
+    "sub": "abstract values your face maps to"
+   }
+  },
+  {
+   "say": "Think of it like a mark-sheet for your face — a unique combination no one else shares. <laugh>",
+   "mood": "laugh",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "Student mark sheet",
+     "icon": "graduation-cap"
+    },
+    "right": {
+     "label": "Face number list",
+     "icon": "hash"
+    },
+    "note": "Unique combination — no picture required"
+   }
+  },
+  {
+   "say": "During setup, a neural network — a program trained on millions of faces — builds that number list and saves it in a locked chip: a separate processor no app can touch.",
+   "mood": "point",
+   "visual": {
+    "type": "network",
+    "heading": "Learning your face",
+    "layers": [
+     3,
+     5,
+     4,
+     2
+    ],
+    "input": "Face image",
+    "middle": "finding patterns",
+    "output": "128 numbers"
+   }
+  },
+  {
+   "say": "Each unlock, the same program reads your fresh face, makes a new list, and measures how far it sits from your saved one. Close enough? Open.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "heading": "Every unlock",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Fresh face",
+      "icon": "scan-face"
+     },
+     {
+      "id": "b",
+      "label": "New numbers",
+      "icon": "hash"
+     },
+     {
+      "id": "c",
+      "label": "vs Saved",
+      "icon": "scale"
+     },
+     {
+      "id": "d",
+      "label": "Gap small? Open",
+      "icon": "lock"
+     }
+    ],
+    "highlight": "d"
+   }
+  },
+  {
+   "say": "That comparison alone takes under 100 milliseconds. The whole unlock? About 0.3 seconds total.",
+   "mood": "wow",
+   "visual": {
+    "type": "stat",
+    "value": "<100ms",
+    "label": "comparison alone — full unlock ~0.3 s"
+   }
+  },
+  {
+   "say": "Phones with a depth sensor fire invisible light at your face. Close one eye — world goes flat, like a photo. No depth to fake.",
+   "mood": "point",
+   "visual": {
+    "type": "compare",
+    "heading": "2D vs 3D face unlock",
+    "left": {
+     "label": "No depth sensor",
+     "icon": "smartphone",
+     "items": [
+      "Front camera only",
+      "Sees flat 2D image",
+      "Can be fooled by photo"
+     ]
+    },
+    "right": {
+     "label": "Has depth sensor",
+     "icon": "scan-face",
+     "items": [
+      "Fires invisible light",
+      "Builds 3D depth map",
+      "Photo has no depth"
+     ]
+    }
+   }
+  },
+  {
+   "say": "Grow a beard? Numbers update when the phone is confident enough it's you. Identical twins? Their numbers sit very close. Known weak spot.",
+   "mood": "think",
+   "visual": {
+    "type": "steps",
+    "heading": "Edge cases",
+    "items": [
+     {
+      "text": "Beard or glasses: updates when confident",
+      "icon": "refresh-cw"
+     },
+     {
+      "text": "Identical twins: numbers very close",
+      "icon": "users"
+     },
+     {
+      "text": "Dark room: depth sensor works fine",
+      "icon": "eye"
+     }
+    ]
+   }
+  },
+  {
+   "say": "And those numbers never leave your phone — invisible to every app.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Face numbers *never leave* your phone",
+    "sub": "invisible to every app"
+   }
+  },
+  {
+   "say": "Depth sensor, neural network, number check — all done as you glance at a screen.",
+   "mood": "wow",
+   "visual": {
+    "type": "steps",
+    "heading": "Every unlock — 0.3 seconds",
+    "items": [
+     {
+      "text": "Depth sensor maps your face",
+      "icon": "scan-face"
+     },
+     {
+      "text": "Neural network runs",
+      "icon": "brain"
+     },
+     {
+      "text": "New numbers vs saved",
+      "icon": "scale"
+     },
+     {
+      "text": "Gap small enough? Phone opens",
+      "icon": "lock"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Your phone doesn't recognise your face. It recognises your numbers. Stay curious. Thoma out!",
+   "mood": "wave",
+   "visual": {
+    "type": "takeaway",
+    "text": "Your phone reads *your numbers*, not your face"
+   }
+  }
+ ],
+ "writer": "claude",
+ "format": "explainer",
+ "chapters": [],
+ "music": "Carefree"
+}

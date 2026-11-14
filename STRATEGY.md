@@ -1,6 +1,32 @@
 # Thoma Explains: growth and income plan
 
-Goal: 10,000 subscribers in 3 months and a real second income. This plan is honest about what that takes.
+**Goal: reach YouTube monetization within 3 months — before the bar rises on 1 Feb 2027.** This plan is
+honest about what that takes, and is now grounded in our first real numbers.
+
+## Where we are now (7 Nov 2026)
+First 5 videos are live. Channel: **5 subscribers, 241 total views.** Early, but there is already signal:
+
+| Views | Length | Title | Type |
+|--:|--|--|--|
+| **112** | 1:38 | How do self-driving cars see? | Short |
+| 54 | 1:36 | AI hallucinations: why better data can't fix them | Short |
+| 38 | 1:44 | NotebookLM: one file into four shapes | Short |
+| 19 | 4:26 | Is the AI bubble about to pop? | Long |
+| 18 | 9:59 | RAG vs OKF: how AI agents get their knowledge | Long |
+
+**What the data says (n=5, so leads not laws):**
+1. **Shorts out-reach long videos ~5×.** With a tiny subscriber base, the Shorts feed is our only real
+   distribution. Shorts are the growth engine; long videos are the watch-hour/retention play for later.
+2. **The real-world "how does it physically work" angle won by 2×** (self-driving cars). This validates
+   the niche broadening to cars/drones/robots + the AI inside. It is now our lead content type (the idea
+   triage flags `realworld` topics and ranks them highest; `visuals.py` uses more real photos on them).
+3. **Engagement is near-zero (1 comment).** Normal at launch — we need volume and a reason to comment.
+
+**The hard truth about the 3-month target.** Full ad monetization (1,000 subs + 4,000 watch-hours OR
+10M Shorts views in 90 days) from 5 subs in <3 months is a long shot — most channels take 6–18 months.
+The *achievable* milestone before 1 Feb 2027 is the **early / fan-funding tier (500 subs + 3,000
+watch-hours or 3M Shorts views)**, with a real shot at full monetization only if one or two Shorts break
+out. So: optimise relentlessly for Shorts reach now, and bank watch-hours with bingeable long videos.
 
 ## The rules of the game (researched October 2026)
 
@@ -29,16 +55,20 @@ monetization from, and has terminated, faceless channels that look mass-produced
 In January 2026 it terminated channels with 35M subscribers combined. Our channel has an AI voice
 and automation, so **we must look and feel like a real, caring creator**. That shapes everything below.
 
-## Honest expectations
+## Honest expectations (milestones to monetization)
 
-10k subscribers in 3 months **is possible, but most new channels don't get there.** Typically
-it takes one or two Shorts or videos that take off, plus steady quality. A realistic plan:
+The target is **monetization eligibility before 1 Feb 2027**, not a vanity subscriber count. Most new
+channels take far longer, so this is a stretch that depends on at least one Short breaking out. Plan:
 
 | By the end of | Target | What it unlocks |
 |---|---|---|
-| Month 1 | 300–1,000 subs, find which topics work | Learning |
-| Month 2 | 1,000–3,000 subs, 1,500+ watch hours | Early tier soon |
-| Month 3 | 3,000–10,000 subs, 4,000 watch hours | **Apply for ads before Feb 2027** |
+| Month 1 (early Dec) | 150–500 subs; learn which Shorts hooks land | Direction |
+| Month 2 (early Jan) | 500 subs + 3 uploads + 3,000 watch-hrs **or** 3M Shorts views | **Early / fan-funding tier** |
+| Month 3 (by 31 Jan) | push for 1,000 subs + 4,000 watch-hrs / 10M Shorts views | **Full ad monetization** |
+
+If only the early tier is reached by 31 Jan, that still beats the Feb-1 threshold hike and unlocks
+memberships + Super Thanks. Full ads can follow right after. Track the real numbers with
+`uv run thoma analytics` every week and let them overrule this table.
 
 Money in months 1–3 will be small (a few thousand rupees at most). Real income starts after
 monetization and grows with the back catalogue, because good explainers keep getting found for years.
@@ -58,7 +88,12 @@ monetization and grows with the back catalogue, because good explainers keep get
    a disclosure line to every description.
 
 ## The growth engine
-- **Two topic lanes.**
+- **Lead with real-world "how does it actually work".** Our best video by far. Cars, self-driving, EVs,
+  drones, robots, rockets, cameras, wearables — and the AI inside them. These make strong Shorts hooks
+  ("How does a self-driving car *see*?") and they use real photos for the hook, diagrams for the
+  mechanism. The triage now ranks these topics highest; the backlog (`assets/evergreen_topics.txt`) is
+  stocked with them. Aim for roughly half of Shorts in this lane.
+- **Two supporting topic lanes.**
   - *Fresh:* when IBM Technology, Fireship or ByteMonk cover something new, Thoma explains the
     underlying concept within a day, while people are searching for it.
   - *Evergreen:* "What is an API / Docker / RAG" topics that get searched for years and build watch hours.
