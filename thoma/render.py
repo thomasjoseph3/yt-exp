@@ -16,7 +16,7 @@ import imageio_ffmpeg
 import numpy as np
 import soundfile as sf
 
-from . import visuals, voice
+from . import images, visuals, voice
 from .config import ASSETS, cfg
 
 log = logging.getLogger("thoma.render")
@@ -34,6 +34,18 @@ LAYOUTS = {
 }
 MOODS = {"talk", "point", "think", "wow", "laugh", "wave"}
 THEMES = ["midnight", "ocean", "ember", "matrix"]  # looks rotate per video so the channel never feels templated
+# Shorts A/B test: alternate the two candidate looks by video id (even -> Style A, odd -> Style B),
+# so roughly half the Shorts get each style and their view counts can be compared in YouTube Studio.
+SHORT_AB = ["spotlight", "midnight"]
+
+
+def _theme_for(name, kind):
+    """Pick the backdrop theme. Shorts alternate the A/B styles by id; longs rotate the full set."""
+    if kind == "short":
+        head = name.split("-", 1)[0]
+        if head.isdigit():
+            return SHORT_AB[int(head) % len(SHORT_AB)]
+    return THEMES[sum(map(ord, name)) % len(THEMES)]
 
 
 def _thoma_track(scenes, spans, blocks, track, fps, n_frames):
@@ -83,7 +95,7 @@ def _srt(words, path: Path):
     if cur:
         chunks.append(cur)
     out = [f"{n}\n{ts(c[0][1])} --> {ts(c[-1][2])}\n{' '.join(w for w, _, _ in c)}\n" for n, c in enumerate(chunks, 1)]
-    path.write_text("\n".join(out))
+    path.write_text("\n".join(out), encoding="utf-8")
 
 
 def _captions(words):
@@ -159,6 +171,14 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     n_frames = math.ceil(duration * fps)
 
     blocks = _blocks(scenes, spans, words, duration)
+    # 'image' scenes: download a real photo now; stage.js reads visual['src']. Deleted after render().
+    orient = "vertical" if H > W else "horizontal"
+    for b in blocks:
+        v = b["visual"]
+        if v.get("type") == "image":
+            src = images.fetch(v.get("query", ""), out_dir / "images", orient, v.get("kind", "photo"))
+            if src:
+                v["src"] = src
     events = [(b["start"] - 0.12, "whoosh", 0.35) for b in blocks[1:]]
     events += [(t, "pop", 0.18) for b in blocks for t in b["reveals"][:6]]
     sf.write(out_dir / "voice.wav", voice.level(track), voice.SR)
@@ -170,7 +190,7 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
     used = visuals.icons_used([b["visual"] for b in blocks])
     data = {
         "kind": kind, "W": W, "H": H, "fps": fps, "duration": duration, "n_frames": n_frames,
-        "theme": script.get("theme") or THEMES[sum(map(ord, out_dir.name)) % len(THEMES)],
+        "theme": script.get("theme") or _theme_for(out_dir.name, kind),
         "cover": {"text": script.get("thumb_text") or script["title"]} if kind == "short" else None,
         "title": script["title"],
         "layout": {k: L[k] for k in ("stage", "thoma", "captions_y", "caption_size", "brand")},
@@ -179,7 +199,7 @@ def prepare(script: dict, kind: str, out_dir: Path) -> dict:
         "icons": {name: visuals.icon_svg(name) for name in used},
     }
     data["scenes"] = [[round(a, 2), round(b, 2)] for a, b in spans]  # lets the owner's "/fix at 0:23" find the scene
-    (out_dir / "timeline.json").write_text(json.dumps({k: v for k, v in data.items() if k not in ("thoma", "icons")}, indent=1))
+    (out_dir / "timeline.json").write_text(json.dumps({k: v for k, v in data.items() if k not in ("thoma", "icons")}, indent=1), encoding="utf-8")
     return data
 
 
@@ -269,16 +289,53 @@ def render(script: dict, kind: str, out_dir: Path) -> Path:
         pw.stop()
     for f in ("voice.wav", "sfx.wav"):  # muxed into the mp4; no need to keep them
         (out_dir / f).unlink(missing_ok=True)
+    images.cleanup(out_dir / "images")  # owner's rule: drop the downloaded photos once the video exists
     log.info("rendered %s (%.0fs, %.0f MB)", out, duration, out.stat().st_size / 1e6)
     return out
 
 
-def thumbnail(page, script: dict, path: Path):
-    """1280x720 thumbnail: big text, one glowing icon, Thoma the imp reacting."""
+def thumbnail(page, script: dict, path: Path, images_dir: Path | None = None):
+    """1280×720 thumbnail: real photo background + bold text + Thoma reacting.
+
+    Real photos are the single biggest clickability boost. We fetch one from Pixabay
+    using a 2–3 word query derived from thumb_text/title, darken it inside thumb.html,
+    and lay bold text + Thoma on top. Falls back to the icon-only design if Pixabay
+    is unreachable or no key is configured.
+    """
     first = visuals.normalize(script["scenes"][0].get("visual"))
     text = script.get("thumb_text") or script["title"].split("?")[0] + "?"
     icon = visuals.fix_icon(script.get("thumb_icon") or first.get("icon") or "sparkles")
+
+    # Build a compact photo query: use thumb_photo_query if the script has one,
+    # otherwise distil 2–3 key words from thumb_text / title.
+    photo_query = script.get("thumb_photo_query") or ""
+    if not photo_query:
+        raw = (script.get("thumb_text") or script["title"])
+        # strip highlight markers and question marks, keep the most meaningful words
+        import re as _re
+        words = _re.sub(r"[*?]", "", raw).split()
+        stops = {"the", "a", "an", "is", "are", "how", "why", "what", "does", "do",
+                 "your", "my", "it", "its", "you", "we", "i", "and", "or", "in",
+                 "on", "of", "to", "for", "with", "by", "this", "that", "can", "know"}
+        kws = [w for w in words if w.lower() not in stops]
+        photo_query = " ".join(kws[:3]) if kws else raw[:40]
+
+    # Fetch photo into a sibling images/ folder (cleaned up by render() already).
+    _images_dir = images_dir or path.parent / "images"
+    photo_src = images.fetch(photo_query, _images_dir, orientation="horizontal", image_type="photo")
+    if not photo_src:
+        # Secondary attempt: simpler 1-word query from the title's first noun
+        fallback = (script["title"].split()[0] if script.get("title") else "technology")
+        photo_src = images.fetch(fallback, _images_dir, orientation="horizontal", image_type="photo")
+
     page.set_viewport_size({"width": 1280, "height": 720})
     page.goto((WEB / "thumb.html").as_uri())
-    page.evaluate("d => draw(d)", {"text": text, "icon": visuals.icon_svg(icon)})
+    draw_data: dict = {"text": text, "icon": visuals.icon_svg(icon)}
+    if photo_src:
+        draw_data["photo"] = photo_src   # file:// URI → thumb.html shows it as the bg
+    page.evaluate("d => draw(d)", draw_data)
+    # Give the photo a moment to decode inside the headless browser
+    if photo_src:
+        page.wait_for_timeout(400)
     page.screenshot(path=str(path), type="jpeg", quality=92)
+    log.info("thumbnail %s (photo=%s)", path.name, bool(photo_src))

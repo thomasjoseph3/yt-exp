@@ -2,7 +2,7 @@
 @font-face { font-family: Mono; src: url(fonts/JetBrainsMono.ttf); font-weight: 100 800; }
 
 :root {
-  --bg: #070b18;
+  --bg: #04060f;
   --panel: rgba(22, 30, 54, 0.78);
   --panel-edge: rgba(148, 163, 255, 0.22);
   --text: #eef2ff;
@@ -19,24 +19,31 @@
 html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
 body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothing: antialiased; }
 
-#frame { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 30% 20%, #131c3a 0%, var(--bg) 65%); }
-#grid { position: absolute; inset: -50%; background-image: radial-gradient(rgba(140, 160, 255, 0.13) 1.5px, transparent 1.5px); background-size: 44px 44px; }
+#frame { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 30% 20%, #0d1430 0%, var(--bg) 62%); }
+#grid { position: absolute; inset: -50%; background-image: radial-gradient(rgba(140, 160, 255, 0.10) 1.5px, transparent 1.5px); background-size: 44px 44px; }
 /* Looks that rotate between videos (render.THEMES): same brand, different colours and backdrop. */
-:root[data-theme="ocean"] { --bg: #03111c; --panel: rgba(12, 36, 54, 0.8); --panel-edge: rgba(125, 211, 252, 0.25);
+:root[data-theme="ocean"] { --bg: #020a12; --panel: rgba(12, 36, 54, 0.8); --panel-edge: rgba(125, 211, 252, 0.25);
   --cyan: #38bdf8; --violet: #818cf8; --blue: #22d3ee; }
-:root[data-theme="ocean"] #frame { background: radial-gradient(ellipse at 70% 15%, #0c3550 0%, var(--bg) 65%); }
+:root[data-theme="ocean"] #frame { background: radial-gradient(ellipse at 70% 15%, #082438 0%, var(--bg) 62%); }
 :root[data-theme="ocean"] #grid { background-image: linear-gradient(rgba(125,211,252,0.07) 2px, transparent 2px),
   linear-gradient(90deg, rgba(125,211,252,0.07) 2px, transparent 2px); }
-:root[data-theme="ember"] { --bg: #120a10; --panel: rgba(44, 22, 34, 0.8); --panel-edge: rgba(251, 146, 60, 0.25);
+:root[data-theme="ember"] { --bg: #0b0509; --panel: rgba(44, 22, 34, 0.8); --panel-edge: rgba(251, 146, 60, 0.25);
   --cyan: #fb923c; --violet: #f472b6; --pink: #c084fc; --blue: #facc15; }
-:root[data-theme="ember"] #frame { background: radial-gradient(ellipse at 25% 85%, #3a1626 0%, var(--bg) 65%); }
+:root[data-theme="ember"] #frame { background: radial-gradient(ellipse at 25% 85%, #280f1a 0%, var(--bg) 62%); }
 :root[data-theme="ember"] #grid { background-image: repeating-linear-gradient(45deg, rgba(251,146,60,0.06) 0 2px, transparent 2px 30px); }
-:root[data-theme="matrix"] { --bg: #03130d; --panel: rgba(10, 40, 30, 0.8); --panel-edge: rgba(52, 211, 153, 0.25);
+:root[data-theme="matrix"] { --bg: #020b07; --panel: rgba(10, 40, 30, 0.8); --panel-edge: rgba(52, 211, 153, 0.25);
   --cyan: #34d399; --violet: #2dd4bf; --green: #a3e635; --blue: #38bdf8; }
-:root[data-theme="matrix"] #frame { background: radial-gradient(ellipse at 50% 0%, #0d3a28 0%, var(--bg) 65%); }
+:root[data-theme="matrix"] #frame { background: radial-gradient(ellipse at 50% 0%, #09271b 0%, var(--bg) 62%); }
 :root[data-theme="matrix"] #grid { background-image: radial-gradient(rgba(52,211,153,0.16) 1.5px, transparent 1.5px); background-size: 32px 32px; }
+/* Style A for the Shorts A/B test: flat near-black backdrop, no dot-grid, one bold lime accent,
+   bigger punchier captions. Cleaner / more modern than the neon "midnight" look (Style B). */
+:root[data-theme="spotlight"] { --bg: #070708; --panel: rgba(24, 24, 27, 0.82); --panel-edge: rgba(163, 230, 53, 0.30);
+  --text: #fafafa; --muted: #a1a1aa; --amber: #a3e635; --cyan: #a3e635; --violet: #84cc16; --green: #a3e635; --blue: #bef264; }
+:root[data-theme="spotlight"] #frame { background: radial-gradient(ellipse at 50% 12%, #141410 0%, var(--bg) 58%); }
+:root[data-theme="spotlight"] #grid { display: none; }
+:root[data-theme="spotlight"] #captions { -webkit-text-stroke-width: 14px; font-weight: 900; }
 
-.blob { position: absolute; border-radius: 50%; filter: blur(110px); opacity: 0.32; }
+.blob { position: absolute; border-radius: 50%; filter: blur(130px); opacity: 0.10; }
 
 #brand { position: absolute; display: flex; align-items: center; gap: 14px; font-weight: 800; letter-spacing: 0.02em; z-index: 5; }
 #brand .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 18px var(--amber); }
@@ -51,6 +58,16 @@ body { font-family: Inter, sans-serif; color: var(--text); -webkit-font-smoothin
 /* cards */
 .card { position: absolute; background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 26px;
         box-shadow: 0 20px 60px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06); }
+/* real stock photo scenes (visuals.image): framed photo, Ken Burns zoom, dark fade for mood + legibility */
+.photo-wrap { position: absolute; border-radius: 26px; overflow: hidden; border: 2px solid var(--panel-edge);
+              box-shadow: 0 30px 90px rgba(0,0,0,0.55); }
+.photo { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; will-change: transform; }
+.photo-shade { position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to top, rgba(2,4,10,0.84) 0%, rgba(2,4,10,0.28) 34%, rgba(2,4,10,0) 58%),
+              radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 50%, rgba(2,4,10,0.52) 100%); }
+.photo-cap { position: absolute; left: 7%; right: 7%; bottom: 7%; text-align: center; font-weight: 800;
+             color: var(--text); line-height: 1.12; text-shadow: 0 3px 22px rgba(0,0,0,0.85); }
+.photo-cap .hl { color: var(--amber); }
 .icon { display: flex; align-items: center; justify-content: center; border-radius: 22px; }
 .icon svg { width: 58%; height: 58%; stroke-width: 2.1; }
 .label { font-weight: 750; text-align: center; line-height: 1.15; }

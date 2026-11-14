@@ -5,49 +5,83 @@
 <link rel="stylesheet" href="stage.css">
 <script src="mascot.js"></script>
 <style>
-  body { width: 1280px; height: 720px; }
+  body { width: 1280px; height: 720px; margin: 0; }
   #t { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(ellipse at 25% 30%, #1b2858 0%, #070b18 70%); }
-  #t .blob { width: 700px; height: 700px; }
-  #words { position: absolute; left: 60px; top: 60px; width: 760px; height: 600px; display: flex; align-items: center;
-           font-weight: 900; line-height: 1.0; letter-spacing: -0.03em; text-transform: uppercase; color: #fff;
-           paint-order: stroke fill; -webkit-text-stroke: 14px #05070f; }
-  #words .hl { color: var(--amber); }
-  #ic { position: absolute; right: 330px; top: 60px; width: 190px; height: 190px; border-radius: 40px; display: flex;
+  /* real photo background (optional) — the single biggest clickability boost */
+  #photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+           filter: saturate(1.1) contrast(1.06) brightness(0.84); }
+  .blob { position: absolute; border-radius: 50%; filter: blur(60px); opacity: 0.55; z-index: 0; }
+  /* overlays: keep text readable + add brand mood */
+  #tint { position: absolute; inset: 0; z-index: 2; mix-blend-mode: screen;
+          background: radial-gradient(ellipse at 22% 34%, rgba(124,58,237,0.38), transparent 58%); }
+  #shadeL { position: absolute; inset: 0; z-index: 2;
+            background: linear-gradient(90deg, #060a16 28%, rgba(6,10,22,0.55) 54%, rgba(6,10,22,0.05) 100%); }
+  #shadeB { position: absolute; inset: 0; z-index: 2;
+            background: linear-gradient(0deg, rgba(4,6,13,0.9) 0%, transparent 34%); }
+  #words { position: absolute; left: 56px; top: 48px; width: 820px; height: 604px; display: flex; align-items: center;
+           font-weight: 900; line-height: 0.94; letter-spacing: -0.035em; text-transform: uppercase; color: #fff;
+           paint-order: stroke fill; -webkit-text-stroke: 16px #05070f; z-index: 3;
+           filter: drop-shadow(0 12px 24px rgba(0,0,0,0.78)); }
+  #words .hl { color: #ffd21e; -webkit-text-stroke: 16px #2a1800;
+               text-shadow: 0 0 34px rgba(255,210,30,0.75), 0 0 12px rgba(255,210,30,0.9); }
+  #ic { position: absolute; right: 360px; top: 54px; width: 170px; height: 170px; border-radius: 38px; display: flex;
         align-items: center; justify-content: center; color: var(--cyan); background: rgba(34,211,238,0.14);
-        border: 3px solid rgba(34,211,238,0.6); box-shadow: 0 0 70px rgba(34,211,238,0.55); transform: rotate(-8deg); }
+        border: 3px solid rgba(34,211,238,0.6); box-shadow: 0 0 70px rgba(34,211,238,0.55); transform: rotate(-8deg); z-index: 3; }
   #ic svg { width: 62%; height: 62%; stroke-width: 2.2; }
-  #th { position: absolute; right: 30px; bottom: 10px; width: 330px; height: 429px; }
-  #brand2 { position: absolute; left: 60px; bottom: 38px; display: flex; gap: 12px; align-items: center; font-weight: 800; font-size: 30px; color: #fff; }
+  #thglow { position: absolute; right: 60px; bottom: 60px; width: 360px; height: 360px; z-index: 3; border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,210,30,0.38) 0%, rgba(255,210,30,0.12) 42%, transparent 66%);
+            filter: blur(14px); }
+  #th { position: absolute; right: 12px; bottom: 2px; width: 356px; height: 462px; z-index: 4;
+        filter: drop-shadow(0 6px 10px rgba(0,0,0,0.7)) drop-shadow(0 0 30px rgba(34,211,238,0.5)); }
+  #brand2 { position: absolute; left: 56px; bottom: 32px; display: flex; gap: 12px; align-items: center; font-weight: 800;
+            font-size: 30px; color: #fff; z-index: 5; text-shadow: 0 2px 12px rgba(0,0,0,0.85); }
   #brand2 .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 18px var(--amber); }
 </style>
 <script>
 window.draw = async (d) => {
   await document.fonts.ready;
   const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const hasPhoto = !!d.photo;
+  if (hasPhoto) {
+    const img = document.getElementById("photo");
+    img.src = d.photo;
+    try { await img.decode(); } catch (e) {}
+    document.getElementById("ic").style.display = "none";   // the photo is the visual now
+  } else {
+    document.getElementById("photo").style.display = "none";
+    document.getElementById("shadeL").style.display = "none";
+    document.getElementById("shadeB").style.display = "none";
+    document.getElementById("ic").innerHTML = d.icon;
+  }
   let html = String(d.text).split(/(\*[^*]+\*)/).map(p => p.startsWith("*") && p.endsWith("*")
     ? `<span class="hl">${esc(p.slice(1, -1))}</span>` : esc(p)).join("");
-  if (!/\*/.test(d.text)) {  // no highlight given: colour the last word
+  if (!/\*/.test(d.text)) {   // no highlight given: colour the last word
     const parts = html.trim().split(" "); parts[parts.length - 1] = `<span class="hl">${parts[parts.length - 1]}</span>`; html = parts.join(" ");
   }
   const w = document.getElementById("words");
   const inner = document.createElement("div");
   inner.innerHTML = html;
   w.appendChild(inner);
-  let size = 150;
+  let size = 184;
   inner.style.fontSize = size + "px";
-  while (size > 50 && (inner.scrollHeight > 600 || inner.scrollWidth > 760)) { size -= 4; inner.style.fontSize = size + "px"; }
-  document.getElementById("ic").innerHTML = d.icon;
-  buildMascot(document.getElementById("th"), 330).update(0.3, 3, "wow", false, false, 0);
+  const maxW = hasPhoto ? 744 : 824;
+  while (size > 54 && (inner.scrollHeight > 612 || inner.scrollWidth > maxW)) { size -= 4; inner.style.fontSize = size + "px"; }
+  buildMascot(document.getElementById("th"), 356).update(0.3, 3, "wow", false, false, 0);
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 };
 </script>
 </head>
 <body>
 <div id="t">
-  <div class="blob" style="left:-200px; top:-250px; background: var(--violet)"></div>
-  <div class="blob" style="right:-250px; bottom:-300px; background: var(--cyan)"></div>
-  <div id="words"></div>
+  <img id="photo">
+  <div class="blob" style="left:-150px; top:-200px; width:620px; height:620px; background: var(--violet)"></div>
+  <div class="blob" style="right:-200px; bottom:-260px; width:620px; height:620px; background: var(--cyan)"></div>
+  <div id="tint"></div>
+  <div id="shadeL"></div>
+  <div id="shadeB"></div>
   <div id="ic"></div>
+  <div id="words"></div>
+  <div id="thglow"></div>
   <div id="th"></div>
   <div id="brand2"><span class="dot"></span>Thoma Explains</div>
 </div>

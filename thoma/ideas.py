@@ -4,6 +4,8 @@ Source videos are used only as topic signals (title + description). Thoma's
 scripts are written from scratch, and writer.py blocks copied phrasing.
 """
 import difflib
+import hashlib
+import html
 import logging
 import re
 import time
@@ -18,18 +20,25 @@ log = logging.getLogger("thoma.ideas")
 NS = {"a": "http://www.w3.org/2005/Atom", "media": "http://search.yahoo.com/mrss/",
       "yt": "http://www.youtube.com/xml/schemas/2015"}
 
-TRIAGE_SYSTEM = """You plan topics for "Thoma Explains", an EDUCATION channel about AI for complete
-beginners: how AI works, new AI models and updates, new AI technology, AI security issues (prompt
-injection, deepfakes, voice-clone scams, data leaks, jailbreaks) and AI news, always explained so a
-10th-standard student understands what happened and the concept behind it. You get titles and
-descriptions of videos from other tech channels. For each, decide if its subject can become an
-original beginner explainer of ONE clear concept (e.g. a release about a new database -> "What is a
-vector database?"; a security incident -> "How do AI voice scams work?"). fit=false for podcasts,
+TRIAGE_SYSTEM = """You plan topics for "Thoma Explains", an EDUCATION channel for complete beginners
+about AI AND how modern technology works - especially the AI and engineering hidden inside real-world
+products and cutting-edge machines: how AI works, new AI models and updates, AI security issues (prompt
+injection, deepfakes, voice-clone scams, data leaks, jailbreaks), and how things like self-driving and
+electric cars, flying cars (eVTOL), drones, robots, smart-home gadgets and similar machines actually
+work and the AI inside them - always explained so a 10th-standard student understands what happened and
+the concept behind it. You get titles and descriptions of videos from other tech channels. For each,
+decide if its subject can become an original beginner explainer of ONE clear concept (e.g. a release
+about a new database -> "What is a vector database?"; a self-driving demo -> "How does a self-driving
+car see the road?"; a security incident -> "How do AI voice scams work?"). fit=false for podcasts,
 round-ups that cover many things, interviews, opinion pieces, product ads, and memes.
-ai=true if the topic is about AI (or a security issue involving AI); other tech is allowed but less
-wanted. news=true if it is about something that just happened and gets stale within a week.
+ai=true if the topic is about AI or the smart technology inside a product (self-driving, robotics,
+computer vision, voice assistants, etc.); plain non-AI tech is allowed but less wanted.
+realworld=true if the topic is how a PHYSICAL real-world machine or device actually works - cars,
+self-driving, EVs, drones, robots, planes, rockets, cameras, wearables, smart-home gadgets and the
+like. This "how does it really work" angle is the channel's best-performing content, so flag it.
+news=true if it is about something that just happened and gets stale within a week.
 Reply as JSON:
-{"items":[{"ref":"<ref>","fit":true,"ai":true,"news":false,"topic":"short plain topic, e.g. What is RAG?",
+{"items":[{"ref":"<ref>","fit":true,"ai":true,"realworld":false,"news":false,"topic":"short plain topic, e.g. What is RAG?",
 "angle":"one everyday analogy Thoma could use"}]}"""
 
 
@@ -73,6 +82,31 @@ def _tools_feed(url: str) -> list[dict]:
             "text": " ".join(tagline.split()) + (f"\nwebsite: {link.group(1)}" if link else ""),
         })
     return items
+
+
+def _feed(name: str, url: str, limit: int = 18) -> list[dict]:
+    """A trending-tech RSS 2.0 or Atom feed (e.g. Hacker News, tech news sites), for emerging and
+    viral topics beyond the fixed channels. Items go through the same beginner-education triage."""
+    r = httpx.get(url, timeout=30, headers={"User-Agent": "Mozilla/5.0 ThomaStudio", "Accept-Language": "en"})
+    r.raise_for_status()
+    root = ET.fromstring(r.text)
+    items = []
+    for e in (root.findall(".//item") or root.findall("a:entry", NS)):   # RSS 2.0 <item> or Atom <entry>
+        if e.tag.endswith("entry"):                                      # Atom
+            title = e.findtext("a:title", default="", namespaces=NS)
+            link = e.find("a:link", NS)
+            raw = e.findtext("a:id", default="", namespaces=NS) or (link.get("href") if link is not None else "")
+            text = e.findtext("a:summary", default="", namespaces=NS) or e.findtext("a:content", default="", namespaces=NS)
+        else:                                                            # RSS 2.0
+            title = e.findtext("title", default="")
+            raw = e.findtext("guid", default="") or e.findtext("link", default="")
+            text = e.findtext("description", default="")
+        title = html.unescape(title or "")                              # some feeds double-encode entities
+        text = re.sub(r"<[^>]+>", " ", html.unescape(text or ""))
+        if title and raw:
+            ref = "feed:" + hashlib.md5(f"{name}:{raw}".encode()).hexdigest()[:12]   # stable across refreshes
+            items.append({"ref": ref, "title": title.strip(), "text": " ".join(text.split())[:400]})
+    return items[:limit]
 
 
 def _channel_page(channel_id: str, per_tab: int = 8) -> list[dict]:
@@ -132,12 +166,16 @@ def _backfill(channel_id: str, pages: int) -> list[dict]:
 
 
 def _priority(verdict: dict, base: int) -> int:
-    """AI topics first (the channel's focus), and fresh AI news before it goes stale; other tech last."""
+    """Real-world 'how it works' first (the best-performing angle), then AI topics and fresh news;
+    plain non-AI tech last."""
     if "ai" not in verdict:  # e.g. the AI-tools triage, which doesn't classify
         return base
-    if not verdict["ai"]:
-        return max(base - 2, 0)
-    return base + (2 if verdict.get("news") else 0)
+    p = base if verdict["ai"] else base - 2
+    if verdict.get("news"):
+        p += 2
+    if verdict.get("realworld"):  # how a real machine works: the channel's strongest content so far
+        p += 2
+    return max(p, 0)
 
 
 def _store(source: str, items: list[dict], priority: int, system: str = TRIAGE_SYSTEM) -> int:
@@ -145,7 +183,7 @@ def _store(source: str, items: list[dict], priority: int, system: str = TRIAGE_S
         known = {r[0] for r in c.execute("SELECT source_ref FROM ideas")}
     fresh = [i for i in items if i["ref"] not in known]
     with db.conn() as c:
-        topics = [r[0].lower() for r in c.execute("SELECT topic FROM ideas WHERE status='new'")]
+        topics = [(r[0] or "").lower() for r in c.execute("SELECT topic FROM ideas WHERE status='new'")]
     added = 0
     for chunk in (fresh[i:i + 15] for i in range(0, len(fresh), 15)):
         listing = "\n\n".join(f"ref: {i['ref']}\ntitle: {i['title']}\ndescription: {i['text'][:400]}" for i in chunk)
@@ -153,7 +191,7 @@ def _store(source: str, items: list[dict], priority: int, system: str = TRIAGE_S
         with db.conn() as c:
             for i in chunk:
                 v = verdicts.get(i["ref"], {"fit": False})
-                topic = v.get("topic", "").lower()
+                topic = (v.get("topic") or "").lower()
                 if v.get("fit") and any(difflib.SequenceMatcher(None, topic, t).ratio() > 0.85 for t in topics):
                     v["fit"] = False  # same topic already queued from another channel
                 topics.append(topic)
@@ -229,6 +267,12 @@ def refresh(backfill_pages: int = 0) -> int:
         items = _backfill(ch["channel_id"], backfill_pages) if backfill_pages else _rss(ch["channel_id"])
         # New uploads are timely, so they jump the queue; back-catalogue does not.
         added += _store(ch["name"], items, priority=1 if backfill_pages else 3)
+    # Emerging/viral tech from the wider web; the triage gate keeps only beginner-explainable tech/AI.
+    for f in cfg()["sources"].get("trending_feeds", []):
+        try:
+            added += _store(f["name"], _feed(f["name"], f["url"]), priority=3)
+        except httpx.HTTPError as e:
+            log.warning("trending feed %s unavailable: %s", f["name"], e)
     tools = cfg().get("ai_tools", {})
     if tools.get("enabled"):
         try:
@@ -246,7 +290,7 @@ def seed_evergreen() -> int:
     """Topics beginners search for forever. Used when the source feed is dry."""
     added = 0
     with db.conn() as c:
-        for line in (ASSETS / "evergreen_topics.txt").read_text().splitlines():
+        for line in (ASSETS / "evergreen_topics.txt").read_text(encoding="utf-8").splitlines():
             topic = line.strip()
             if topic and not topic.startswith("#"):
                 cur = c.execute(
@@ -260,7 +304,7 @@ def seed_tools() -> int:
     """Well-known AI tools (assets/ai_tools.txt): evergreen 'how to use' topics."""
     added = 0
     with db.conn() as c:
-        for line in (ASSETS / "ai_tools.txt").read_text().splitlines():
+        for line in (ASSETS / "ai_tools.txt").read_text(encoding="utf-8").splitlines():
             if "|" not in line or line.lstrip().startswith("#"):
                 continue
             name, url = (x.strip() for x in line.split("|", 1))
@@ -279,23 +323,52 @@ def add_topic(topic: str) -> int:
                          " VALUES ('owner', ?, ?, 'new', 9, ?)", (f"owner:{db.now()}:{topic.strip().lower()}", topic.strip(), db.now())).lastrowid
 
 
+_STOP = {"the", "a", "an", "is", "are", "how", "why", "what", "does", "do", "your", "my", "it",
+         "its", "you", "we", "i", "and", "or", "in", "on", "of", "to", "for", "with", "by", "this",
+         "that", "can", "know", "explained", "simply", "really", "actually", "no", "not", "secret"}
+
+
+def _sig(text: str) -> set:
+    """Meaningful words of a title/topic, lowercased, stopwords dropped (for similarity)."""
+    import re
+    return {w for w in re.sub(r"[^a-z0-9 ]", " ", (text or "").lower()).split() if w not in _STOP and len(w) > 2}
+
+
+def _too_similar(topic: str, existing: list[set]) -> bool:
+    """True if `topic` overlaps an already-made/scheduled video too much (Jaccard > 0.6), so the
+    channel doesn't publish near-duplicates (owner requests bypass this)."""
+    a = _sig(topic)
+    if len(a) < 2:
+        return False
+    for b in existing:
+        if b and len(a & b) / len(a | b) > 0.6:
+            return True
+    return False
+
+
 def next_idea(kind: str):
     """Best unused idea for a short (max 2 shorts per idea) or a long video.
 
     Owner requests always come first. Otherwise a share of videos (ai_tools.share) is about AI
-    tools and the rest are concept explainers; if one lane is empty the other is used."""
+    tools and the rest are concept explainers; if one lane is empty the other is used. Auto ideas
+    that look like a video we already made/scheduled are skipped (no near-duplicates)."""
     import random
     used = "long_made = 0" if kind == "long" else "shorts_made < 2"
-    order = " ORDER BY priority DESC, (shorts_made + long_made) ASC, id DESC LIMIT 1"
+    order = " ORDER BY priority DESC, (shorts_made + long_made) ASC, id DESC LIMIT 12"
     tools = cfg().get("ai_tools", {})
     want_tool = tools.get("enabled") and random.random() < tools.get("share", {}).get(kind, 0)
     lanes = ["source IN ('AI tools','tool-evergreen')", "source NOT IN ('AI tools','tool-evergreen')"]
     with db.conn() as c:
-        owner = c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND source='owner'{order}").fetchone()
+        owner = c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND source='owner'"
+                          " ORDER BY priority DESC, (shorts_made + long_made) ASC, id DESC LIMIT 1").fetchone()
         if owner:
-            return owner
+            return owner  # owner topics are intentional; never blocked as "duplicate"
+        existing = [_sig(r[0]) for r in c.execute(
+            "SELECT title FROM videos WHERE status IN ('ready','approved','scheduled','published')").fetchall()]
+        first = None
         for lane in (lanes if want_tool else lanes[::-1]):
-            idea = c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND {lane}{order}").fetchone()
-            if idea:
-                return idea
-    return None
+            for idea in c.execute(f"SELECT * FROM ideas WHERE status='new' AND {used} AND {lane}{order}").fetchall():
+                first = first or idea
+                if not _too_similar(idea["topic"], existing):
+                    return idea
+    return first  # if every candidate looked similar, fall back to the best one rather than stall

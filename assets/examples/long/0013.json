@@ -1,0 +1,807 @@
+{
+ "title": "How AI uses your Gmail for ads (explained simply)",
+ "description": "How AI uses your Gmail for ads changed on October 16, 2026, when Google's privacy policy added a conditional exception for linked services. This video explains the default protection, the one optional choice that lets a Gmail request feed an AI feature like Gemini's Personal Intelligence, and how that context can later influence ads. It separates what Google's systems can process from what an advertiser ever receives, corrects the two common scare stories, and shows which settings limit future use without erasing data already saved. It ends with one simple decision rule and flags the details most likely to change.",
+ "tags": [
+  "how ai uses your gmail for ads",
+  "gmail ads",
+  "google privacy policy 2026",
+  "personal intelligence gemini",
+  "gmail privacy",
+  "google personalized ads",
+  "gemini linked services",
+  "google ads privacy",
+  "ai privacy explained",
+  "gmail data ads",
+  "google privacy policy change",
+  "personalized ads explained",
+  "gemini privacy settings"
+ ],
+ "hashtags": [
+  "AI",
+  "Gmail",
+  "Google",
+  "Privacy",
+  "Gemini"
+ ],
+ "thumb_text": "Gmail ads: *who sees what*",
+ "thumb_icon": "mail",
+ "pinned_comment": "Would you connect Gmail to Gemini for better answers, knowing it may shape ads? Yes or no?",
+ "terms": [
+  {
+   "term": "personalized ads",
+   "scene": 5,
+   "plain": "ads picked from signals about you, things like what you search or watch, not only from the page in front of you"
+  },
+  {
+   "term": "linked service",
+   "scene": 6,
+   "plain": "an app you've connected to Google, like Gmail"
+  },
+  {
+   "term": "Personal Intelligence",
+   "scene": 10,
+   "plain": "a feature that answers you using your linked services, drawing on personal context you chose to share"
+  },
+  {
+   "term": "beta",
+   "scene": 10,
+   "plain": "still being tested"
+  },
+  {
+   "term": "derived context",
+   "scene": 14,
+   "plain": "the note the system keeps about that email, not the email itself, like 'exam hall ticket, 12 May, hall B'"
+  },
+  {
+   "term": "targeting",
+   "scene": 18,
+   "plain": "choosing who sees an ad"
+  },
+  {
+   "term": "Search services history",
+   "scene": 26,
+   "plain": "the record under your personalization settings where old data may stay after you disconnect"
+  }
+ ],
+ "scenes": [
+  {
+   "say": "You asked Gemini to find one email — your exam hall ticket. Simple and helpful. But did that same request help decide which ads you see?",
+   "mood": "think",
+   "visual": {
+    "type": "bigtext",
+    "text": "One email. *One request.*",
+    "sub": "did it affect your ads?"
+   }
+  },
+  {
+   "say": "By the end you'll know exactly what changed in Google's privacy policy on October 16, 2026, who really sees your data, and the settings worth checking tonight.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "What *actually* changed",
+    "sub": "October 16, 2026"
+   }
+  },
+  {
+   "say": "I'm Thoma, your friendly neighbourhood tech imp. Let's poke at this policy carefully, because the scary version going around leaves out one small condition.",
+   "mood": "talk",
+   "visual": {
+    "type": "title",
+    "text": "Gmail, AI and ads",
+    "sub": "what the policy really says",
+    "icon": "mail"
+   }
+  },
+  {
+   "chapter": "The default rule",
+   "say": "Start with the rule that didn't change. Google says the content of your Gmail, Drive and Photos is not used for personalized ads by default.",
+   "mood": "talk",
+   "visual": {
+    "type": "compare",
+    "heading": "Before you choose",
+    "left": {
+     "label": "Your content",
+     "icon": "mail",
+     "items": [
+      "Gmail",
+      "Drive",
+      "Photos"
+     ]
+    },
+    "right": {
+     "label": "Personalized ads",
+     "icon": "target",
+     "items": [
+      "Not used by default"
+     ]
+    }
+   }
+  },
+  {
+   "say": "Personalized ads just means ads picked from signals about you, things like what you search or watch, not only from the page in front of you.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "What shapes ads",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Your searches",
+      "icon": "search"
+     },
+     {
+      "id": "b",
+      "label": "What you watch",
+      "icon": "video"
+     },
+     {
+      "id": "c",
+      "label": "Not just this page",
+      "icon": "file-text"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "chapter": "The one trigger",
+   "say": "Now the exception. Data from a linked service — an app you've connected to Google, like Gmail — can inform ads when you share it with another Google service that supports personalized ads.",
+   "mood": "point",
+   "visual": {
+    "type": "steps",
+    "heading": "The condition",
+    "items": [
+     {
+      "text": "You link an app",
+      "icon": "link"
+     },
+     {
+      "text": "Share it with a Google service",
+      "icon": "share-2"
+     },
+     {
+      "text": "It supports personalized ads",
+      "icon": "target"
+     },
+     {
+      "text": "Ads can use the data",
+      "icon": "megaphone"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Think of a school library app. You link your borrowing history to get book recommendations, and now the app knows you love mystery novels.",
+   "mood": "talk",
+   "visual": {
+    "type": "analogy",
+    "left": {
+     "label": "School library app",
+     "icon": "library"
+    },
+    "right": {
+     "label": "Google AI feature",
+     "icon": "sparkles"
+    },
+    "note": "linking is the trigger"
+   }
+  },
+  {
+   "say": "That taste profile can later decide which book-fair poster you see, even though the publisher never gets your library card or your reading notes.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "heading": "A taste profile forms",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Your history",
+      "icon": "book-open"
+     },
+     {
+      "id": "b",
+      "label": "Taste profile",
+      "icon": "user"
+     },
+     {
+      "id": "c",
+      "label": "Poster chosen",
+      "icon": "image"
+     },
+     {
+      "id": "d",
+      "label": "Publisher",
+      "icon": "store"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b",
+      "label": "builds"
+     },
+     {
+      "from": "b",
+      "to": "c",
+      "label": "informs"
+     },
+     {
+      "from": "c",
+      "to": "d",
+      "label": "ad space"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "chapter": "The AI feature",
+   "say": "The Google version of that assistant has a name: Personal Intelligence. It arrived in Gemini in January 2026, and it's still a beta for eligible users eighteen and over.",
+   "mood": "point",
+   "visual": {
+    "type": "bigtext",
+    "text": "Personal *Intelligence*",
+    "sub": "beta in Gemini since January 2026"
+   }
+  },
+  {
+   "say": "Beta just means it's still being tested. And the feature answers you using your linked services, drawing on personal context you chose to share.",
+   "mood": "talk",
+   "visual": {
+    "type": "chat",
+    "bot": "Gemini",
+    "messages": [
+     {
+      "from": "user",
+      "text": "Find my exam hall ticket.",
+      "flag": "none"
+     },
+     {
+      "from": "bot",
+      "text": "Here it is: 12 May, 9 a.m., hall B.",
+      "flag": "right",
+      "note": "from your mail"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Here's the thread we'll follow. You turn the feature on, connect Gmail, then ask for one thing: your hall ticket. You can also skip the connection entirely.",
+   "mood": "point",
+   "visual": {
+    "type": "steps",
+    "heading": "One thread",
+    "items": [
+     {
+      "text": "Enable the feature",
+      "icon": "settings"
+     },
+     {
+      "text": "Connect Gmail",
+      "icon": "mail"
+     },
+     {
+      "text": "Ask for the ticket",
+      "icon": "search"
+     },
+     {
+      "text": "Or skip the connection",
+      "icon": "x"
+     }
+    ]
+   }
+  },
+  {
+   "say": "It reads through the permitted data to answer the request. That's a program doing the reading — nobody sits there scrolling your mail just to pick ads. <laugh>",
+   "mood": "laugh",
+   "visual": {
+    "type": "bigtext",
+    "text": "A program does *the reading*",
+    "sub": "no one scrolls your mail just for ads"
+   }
+  },
+  {
+   "say": "Now the quiet part. If that second service, the one doing the reading, supports personalized ads, that data — or the context built from it — can influence which ad you get.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "The policy chain",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Your request",
+      "icon": "search"
+     },
+     {
+      "id": "b",
+      "label": "Permitted data",
+      "icon": "files"
+     },
+     {
+      "id": "c",
+      "label": "Derived context",
+      "icon": "lightbulb"
+     },
+     {
+      "id": "d",
+      "label": "Ad chosen",
+      "icon": "target"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b",
+      "label": "allows"
+     },
+     {
+      "from": "b",
+      "to": "c",
+      "label": "builds"
+     },
+     {
+      "from": "c",
+      "to": "d",
+      "label": "can inform"
+     },
+     {
+      "from": "b",
+      "to": "d",
+      "label": "or directly"
+     }
+    ],
+    "highlight": "d"
+   }
+  },
+  {
+   "say": "Derived context just means the note the system keeps about that email — not the email itself. Something like 'exam hall ticket, 12 May, hall B'.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "*A short note*",
+    "sub": "'exam hall ticket, 12 May, hall B'"
+   }
+  },
+  {
+   "chapter": "Who sees what",
+   "say": "So who sees what? You connected the inbox. Google's AI processes it. Google's ad system may use the context. The advertiser only buys the ad space.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "Who sees what",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "You",
+      "icon": "user"
+     },
+     {
+      "id": "b",
+      "label": "Google AI",
+      "icon": "sparkles"
+     },
+     {
+      "id": "c",
+      "label": "Ads system",
+      "icon": "target"
+     },
+     {
+      "id": "d",
+      "label": "Advertiser",
+      "icon": "store"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b",
+      "label": "connect"
+     },
+     {
+      "from": "b",
+      "to": "c",
+      "label": "context"
+     },
+     {
+      "from": "c",
+      "to": "d",
+      "label": "ad space"
+     }
+    ],
+    "highlight": "d"
+   }
+  },
+  {
+   "say": "Advertisers don't get your messages, files or photos, and Google says it doesn't pass identifying details like your name or email address through this process.",
+   "mood": "wow",
+   "visual": {
+    "type": "compare",
+    "heading": "Advertiser receives",
+    "left": {
+     "label": "Google systems",
+     "icon": "cpu",
+     "items": [
+      "Reads context",
+      "Picks the ad"
+     ]
+    },
+    "right": {
+     "label": "Advertiser",
+     "icon": "store",
+     "items": [
+      "Gets the ad space",
+      "No inbox access",
+      "No name or email"
+     ]
+    }
+   }
+  },
+  {
+   "say": "If step-by-step breakdowns help, a new one lands every day.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "A new breakdown *every day*",
+    "sub": "one story, step by step"
+   }
+  },
+  {
+   "say": "Google says some categories are off-limits for targeting — choosing who sees an ad. Health, religion, race and sexual orientation are on it.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "Google says: off-limits",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Health",
+      "icon": "heart"
+     },
+     {
+      "id": "b",
+      "label": "Religion",
+      "icon": "book-open"
+     },
+     {
+      "id": "c",
+      "label": "Race",
+      "icon": "users"
+     },
+     {
+      "id": "d",
+      "label": "Sexual orientation",
+      "icon": "user-check"
+     }
+    ]
+   }
+  },
+  {
+   "chapter": "The wrong pictures",
+   "say": "Which brings us to the picture most people have, and it's wrong. Google has not quietly switched on inbox reading for ads for everyone.",
+   "mood": "think",
+   "visual": {
+    "type": "compare",
+    "heading": "Default vs opt-in",
+    "left": {
+     "label": "The fear",
+     "icon": "circle-alert",
+     "items": [
+      "Every inbox read",
+      "For every user"
+     ]
+    },
+    "right": {
+     "label": "What's reported",
+     "icon": "shield-check",
+     "items": [
+      "Default protection",
+      "Plus one condition"
+     ]
+    }
+   }
+  },
+  {
+   "say": "The second wrong picture is an advertiser browsing your mail like a nosy neighbour. The sources are clear that isn't what happens.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "An advertiser in your inbox? *No.*",
+    "sub": "that's not the mechanism"
+   }
+  },
+  {
+   "say": "And using data inside Google to choose an ad is not the same as selling that data. Those are separate acts, even when both feel uncomfortable.",
+   "mood": "point",
+   "visual": {
+    "type": "compare",
+    "heading": "Two different acts",
+    "left": {
+     "label": "Data picks ads",
+     "icon": "target",
+     "items": [
+      "Stays inside Google"
+     ]
+    },
+    "right": {
+     "label": "Selling your data",
+     "icon": "dollar-sign",
+     "items": [
+      "Not what this is"
+     ]
+    }
+   }
+  },
+  {
+   "say": "So the real trade-off isn't a scary policy page. It's a helpful request. Ask for your hall ticket, and that context may shape ads later.",
+   "mood": "think",
+   "visual": {
+    "type": "diagram",
+    "heading": "The trigger in action",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "Ask for the ticket",
+      "icon": "search"
+     },
+     {
+      "id": "b",
+      "label": "Context shared",
+      "icon": "share-2"
+     },
+     {
+      "id": "c",
+      "label": "Ads may shift",
+      "icon": "target"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b",
+      "label": "shares"
+     },
+     {
+      "from": "b",
+      "to": "c",
+      "label": "may influence"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "say": "You get less searching now. In exchange, that context may follow you into ad selection. You don't have to like it, but you should see it clearly.",
+   "mood": "talk",
+   "visual": {
+    "type": "compare",
+    "heading": "The trade-off",
+    "left": {
+     "label": "What you gain",
+     "icon": "gift",
+     "items": [
+      "Answers from your mail",
+      "Less searching"
+     ]
+    },
+    "right": {
+     "label": "What may follow",
+     "icon": "target",
+     "items": [
+      "Context shapes ads",
+      "On the same account"
+     ]
+    }
+   }
+  },
+  {
+   "chapter": "Check the settings",
+   "say": "So check the levers. Disconnect linked services from Personal Intelligence in your Google Account, and review personalized recommendations in your Search settings.",
+   "mood": "point",
+   "visual": {
+    "type": "steps",
+    "heading": "Where to look",
+    "items": [
+     {
+      "text": "Google Account",
+      "icon": "settings"
+     },
+     {
+      "text": "Personal Intelligence",
+      "icon": "sparkles"
+     },
+     {
+      "text": "Linked services",
+      "icon": "link"
+     },
+     {
+      "text": "Search personalization",
+      "icon": "search"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Ad preferences sit in My Ad Center. Menu names move around, so look for those words instead of memorising a path that may change.",
+   "mood": "talk",
+   "visual": {
+    "type": "bigtext",
+    "text": "Ad preferences live in *My Ad Center*",
+    "sub": "names move; look for the words"
+   }
+  },
+  {
+   "say": "Here's the catch. Disconnecting stops future access, but reporting says old data may stay in your Search services history — the record under your personalization settings.",
+   "mood": "think",
+   "visual": {
+    "type": "compare",
+    "heading": "Cut off vs erase",
+    "left": {
+     "label": "Disconnect",
+     "icon": "plug",
+     "items": [
+      "Stops future access"
+     ]
+    },
+    "right": {
+     "label": "Old saved data",
+     "icon": "files",
+     "items": [
+      "Search services history",
+      "Under personalization settings",
+      "May stay unless deleted"
+     ]
+    }
+   }
+  },
+  {
+   "say": "Availability is a separate question from policy. The policy applies worldwide, but reports say the beta hasn't reached the UK, Switzerland, Nigeria or the European Economic Area yet.",
+   "mood": "talk",
+   "visual": {
+    "type": "diagram",
+    "heading": "Beta availability",
+    "layout": "grid",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "UK",
+      "icon": "map-pin"
+     },
+     {
+      "id": "b",
+      "label": "Switzerland",
+      "icon": "map-pin"
+     },
+     {
+      "id": "c",
+      "label": "Nigeria",
+      "icon": "map-pin"
+     },
+     {
+      "id": "d",
+      "label": "Europe (EEA)",
+      "icon": "map-pin"
+     }
+    ]
+   }
+  },
+  {
+   "say": "Meanwhile, ChatGPT began showing labelled ads in January 2026 and later expanded to dozens of countries. Different company, different rules, same question for you.",
+   "mood": "wow",
+   "visual": {
+    "type": "compare",
+    "heading": "Two ad experiments",
+    "left": {
+     "label": "Google AI",
+     "icon": "sparkles",
+     "items": [
+      "Linked services",
+      "Ads policy"
+     ]
+    },
+    "right": {
+     "label": "ChatGPT ads",
+     "icon": "message-square",
+     "items": [
+      "Labeled ads",
+      "Separate from answers"
+     ]
+    }
+   }
+  },
+  {
+   "say": "One more honest limit: the AI writing your answer and the system picking your ads aren't necessarily the same program. The policy point is the data connection.",
+   "mood": "point",
+   "visual": {
+    "type": "diagram",
+    "heading": "Not one program",
+    "layout": "row",
+    "nodes": [
+     {
+      "id": "a",
+      "label": "AI answer",
+      "icon": "sparkles"
+     },
+     {
+      "id": "b",
+      "label": "Shared context",
+      "icon": "database"
+     },
+     {
+      "id": "c",
+      "label": "Ad system",
+      "icon": "target"
+     }
+    ],
+    "edges": [
+     {
+      "from": "a",
+      "to": "b",
+      "label": "may feed"
+     },
+     {
+      "from": "b",
+      "to": "c",
+      "label": "may inform"
+     }
+    ],
+    "highlight": "c"
+   }
+  },
+  {
+   "say": "So back to your hall ticket. That one request can let your exam context influence ads in principle. It isn't proof that a specific ad came from your mail.",
+   "mood": "think",
+   "visual": {
+    "type": "bigtext",
+    "text": "Eligible, *not proof*",
+    "sub": "the condition, not a verdict"
+   }
+  },
+  {
+   "say": "Key takeaway: convenience can turn your inbox into an ad signal, so check what's connected. Stay curious. Thoma out!",
+   "mood": "wave",
+   "visual": {
+    "type": "takeaway",
+    "text": "Convenience can turn your inbox into an *ad signal* — check what's connected."
+   }
+  }
+ ],
+ "writer": "qoder",
+ "format": "tutorial",
+ "chapters": [
+  [
+   0.0,
+   "Intro"
+  ],
+  [
+   33.2,
+   "The default rule"
+  ],
+  [
+   51.2,
+   "The one trigger"
+  ],
+  [
+   80.9,
+   "The AI feature"
+  ],
+  [
+   145.8,
+   "Who sees what"
+  ],
+  [
+   182.1,
+   "The wrong pictures"
+  ],
+  [
+   226.0,
+   "Check the settings"
+  ]
+ ],
+ "music": "Local Forecast - Elevator"
+}

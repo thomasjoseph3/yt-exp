@@ -50,7 +50,11 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
     v = cfg()["voice"]
     global last_model
     errors = []
-    for model in [pinned_model] if pinned_model else v["gemini_models"]:  # one model per video: same sound
+    # one model per video keeps the voice the same; if its quota runs out mid-video, a sibling
+    # Gemini model (same voice name) keeps the video alive instead of failing it
+    models = [pinned_model] if pinned_model else []
+    models += [m for m in v["gemini_models"] if m not in models]
+    for model in models:
         for key in secrets("GEMINI_API_KEY"):
             if (model, key) in _exhausted:
                 continue
@@ -58,12 +62,16 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
             for attempt in range(3):
                 r = httpx.post("https://generativelanguage.googleapis.com/v1beta/interactions", timeout=180,
                                json=_gemini_body(text, voice, model, styled), headers={"x-goog-api-key": key})
-                if r.status_code == 400 and "metadata is not supported" in r.text and styled:
+                if r.status_code == 400 and styled and ("metadata is not supported" in r.text
+                                                        or "annotations are not supported" in r.text):
                     _no_style.add(model)  # older models: plain text only
                     styled = False
                     continue
                 if r.status_code == 429 and "per minute" in r.text and attempt == 0:
                     time.sleep(20)  # short-term limit: worth one wait
+                    continue
+                if r.status_code == 400 and "audio stream could not be completed" in r.text and attempt < 2:
+                    time.sleep(4 * (attempt + 1))  # Gemini drops long takes now and then: the same text works on retry
                     continue
                 break
             if r.status_code == 200:
@@ -80,7 +88,7 @@ def _gemini(text: str, voice: str | None) -> np.ndarray:
             errors.append(f"{model}: HTTP {r.status_code}")
             if r.status_code in (429, 401, 403):
                 _exhausted.add((model, key))  # daily quota used up or key rejected: skip for this run
-            elif r.status_code not in (404, 500, 503):
+            elif r.status_code not in (404, 500, 503) and "audio stream could not be completed" not in r.text:
                 raise RuntimeError(f"Gemini TTS HTTP {r.status_code}: {r.text[:200]}")
     raise RuntimeError("all Gemini TTS models and keys unavailable: " + "; ".join(errors[-4:]))
 
@@ -179,7 +187,7 @@ def caption_words(text: str) -> list[str]:
     return [w.replace(" —", "").replace(" –", "").replace(" -", "") for w in out]
 
 
-CHUNK_WORDS = 170  # whole scenes per TTS request; a Short is one continuous take
+CHUNK_WORDS = 300  # whole scenes per TTS request; bigger chunks stretch the free daily quota
 CHUNK_GAP = 0.2    # breath between chunks of a long video
 
 
@@ -238,6 +246,32 @@ def align(track: np.ndarray, script_words: list[str]) -> list[tuple[float, float
     return times
 
 
+def _take(text: str, engine: str | None) -> np.ndarray:
+    """Voice one chunk, giving Gemini a second chance and then splitting the text, because one
+    failed stream must not throw away the whole take."""
+    try:
+        return speak(text, engine, strict=engine is not None)
+    except RuntimeError:
+        if engine != "gemini":
+            raise
+    log.info("gemini take failed; retrying after 8s")
+    time.sleep(8)
+    _down.discard("gemini")
+    try:
+        return speak(text, "gemini", strict=True)
+    except RuntimeError as e:
+        err = e
+    mid = len(text) // 2
+    cut = text.rfind(". ", 0, mid) if text.rfind(". ", 0, mid) > len(text) // 4 else text.find(". ", mid)
+    if cut < 0:
+        raise err
+    log.info("speaking the take in two halves")
+    _down.discard("gemini")
+    return np.concatenate([speak(text[:cut + 1], "gemini", strict=True),
+                           np.zeros(int(0.25 * SR), np.float32),
+                           speak(text[cut + 2:], "gemini", strict=True)])
+
+
 def narrate(scenes: list[dict], cache_dir=None):
     """Voice the script as one continuous take (or a few long chunks), set the pace, then find
     exactly when every word is spoken.
@@ -252,7 +286,7 @@ def narrate(scenes: list[dict], cache_dir=None):
     # every chunk uses one engine and one model: a video never changes voice halfway
     meta = cache_dir / "voice.json" if cache_dir else None
     if meta and meta.exists():
-        engine, pinned_model = (lambda m: (m["engine"], m.get("model")))(json.loads(meta.read_text()))
+        engine, pinned_model = (lambda m: (m["engine"], m.get("model")))(json.loads(meta.read_text(encoding="utf-8")))
     else:
         engine, pinned_model = None, None
     if cache_dir:
@@ -265,12 +299,16 @@ def narrate(scenes: list[dict], cache_dir=None):
             if take and take.exists():
                 audio = sf.read(take, dtype="float32")[0]
             else:
-                audio = speak(text, engine, strict=engine is not None)
+                audio = _take(text, engine)
                 if engine is None:
                     engine = last_engine
                     pinned_model = last_model if engine == "gemini" else None
                     if meta:
-                        meta.write_text(json.dumps({"engine": engine, "model": pinned_model}))
+                        meta.write_text(json.dumps({"engine": engine, "model": pinned_model}), encoding="utf-8")
+                elif engine == "gemini" and last_model and pinned_model != last_model:
+                    pinned_model = last_model  # quota moved us to a sibling model: stay on it
+                    if meta:
+                        meta.write_text(json.dumps({"engine": engine, "model": pinned_model}), encoding="utf-8")
                 if take:
                     sf.write(take, audio, SR)
             parts += [audio, np.zeros(int(CHUNK_GAP * SR), np.float32)]

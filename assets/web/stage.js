@@ -9,7 +9,7 @@ const col = (i) => `var(${COLORS[i % COLORS.length]})`;
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const hex = (i) => css(COLORS[i % COLORS.length]);
 
-let D, tl, tickers = [], mascot, capEl, lastCap = "", cuts = [];
+let D, tl, tickers = [], mascot, capEl, lastCap = "", cuts = [], imgReady = [];
 
 function h(tag, cls, parent, styles = {}, html = "") {
   const e = document.createElement(tag);
@@ -124,6 +124,28 @@ B.bigtext = (scene, v, box, R) => {
     const s = h("div", "sub", scene, { position: "absolute", left: "5%", right: "5%", top: box.h * 0.74 + "px" }, esc(v.sub));
     fit(s, box.w * 0.9, 130, 44);
     slideIn(s, R[1] ?? R[0] + 0.8, { y: 30 });
+  }
+};
+
+// A real stock photo (downloaded by render.prepare -> images.fetch). Slow Ken Burns zoom and a
+// dark fade keep it on-brand and the caption legible. No src (no key / no result) -> plain text,
+// so a video is never blank.
+B.image = (scene, v, box, R, start, end) => {
+  if (!v.src) return B.bigtext(scene, { text: v.caption || v.query || "" }, box, R, start, end);
+  const wrap = h("div", "photo-wrap", scene, { left: "0px", top: "0px", width: box.w + "px", height: box.h + "px" });
+  const img = h("img", "photo", wrap, {});
+  img.src = v.src;
+  imgReady.push((img.decode ? img.decode() : Promise.resolve()).catch(() => {}));  // decode before first frame
+  const dur = Math.max(end - start, 1);
+  const dx = (hash(v.src, 1) - 0.5) * 6, dy = (hash(v.src, 2) - 0.5) * 6;  // drift direction varies per photo
+  tl.fromTo(img, { scale: 1.12, xPercent: dx, yPercent: dy },
+    { scale: 1.22, xPercent: -dx, yPercent: -dy, duration: dur, ease: "none" }, start);
+  tl.fromTo(wrap, { opacity: 0 }, { opacity: 1, duration: 0.5, ease: "power2.out" }, start);
+  h("div", "photo-shade", wrap, {});
+  if (v.caption) {
+    const cap = h("div", "photo-cap", wrap, {}, marked(v.caption));
+    fit(cap, box.w * 0.86, box.h * 0.32, 48, 26);
+    slideIn(cap, R[0] ?? start + 0.3, { y: 34 });
   }
 };
 
@@ -658,6 +680,7 @@ function buildCover(frame, W, H) {
 // ---------- stage ----------
 window.load = async (data) => {
   D = data;
+  imgReady = [];
   if (D.theme) document.documentElement.dataset.theme = D.theme;
   await document.fonts.ready;
   const { W, H } = D;
@@ -689,7 +712,7 @@ window.load = async (data) => {
   const flashes = [];
   tickers.push((t) => {
     const d = Math.min(...flashes.map(f => (t >= f ? t - f : 9)), 9);
-    flash.style.opacity = d < 0.35 ? 0.55 * (1 - d / 0.35) : 0;
+    flash.style.opacity = d < 0.35 ? 0.28 * (1 - d / 0.35) : 0;
   });
   const CUTS = [
     [{ y: 50, scale: 0.97 }, { y: -40, scale: 1.02 }],                                  // slide up
@@ -712,7 +735,9 @@ window.load = async (data) => {
     // cuts rotate between a few editing styles so the eye keeps getting something new
     const [inFrom, outTo] = i === 0 ? CUTS[0] : CUTS[i % CUTS.length];
     tl.fromTo(scene, Object.assign({ opacity: 0 }, inFrom), { opacity: 1, x: 0, y: 0, scale: 1, rotation: 0, filter: "blur(0px)", duration: 0.42, ease: "power3.out" }, blk.start);
-    tl.fromTo(zoom, { scale: 1 }, { scale: 1.035, duration: Math.max(blk.end - blk.start, 0.5), ease: "none" }, blk.start);
+    // Only photos get the slow Ken Burns zoom (B.image animates the <img> itself). Text and diagrams
+    // are held pixel-steady after their reveal: continuously scaling text re-rasterises every glyph each
+    // frame, which reads as "vibrating letters" in the final video.
     if (i < D.blocks.length - 1) tl.to(scene, Object.assign({ opacity: 0, duration: 0.28, ease: "power2.in" }, outTo), blk.end - 0.28);
     if (i > 0 && i % CUTS.length === 2) {  // a quick light flash on some cuts
       flashes.push(blk.start);
@@ -739,6 +764,7 @@ window.load = async (data) => {
     capEl.id = "captions";
   }
   tl.add(() => {}, D.duration);
+  if (imgReady.length) await Promise.all(imgReady);  // photos fully decoded before any frame is grabbed
   return true;
 };
 

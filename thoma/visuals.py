@@ -40,6 +40,12 @@ Visual types:
   {"type":"steps","heading":"<=40","items":[{"text":"<=40 chars","icon":"optional"}, ...2-5]}
   {"type":"compare","heading":"<=40","left":{"label":"<=20","icon":"...","items":["<=30", ...<=4]},"right":{same}}
   {"type":"analogy","left":{"label":"everyday thing <=26","icon":"..."},"right":{"label":"the tech <=26","icon":"..."},"note":"optional <=60"}
+  {"type":"image","query":"2-4 words to find a REAL photo, e.g. 'self-driving car city street'","caption":"optional <=55 chars over it, with *highlight*","kind":"photo|illustration"}
+     a real stock photo fills the screen with a slow zoom and a dark fade for mood. Use it for a
+     real-world moment (a street, a highway, a laptop, a factory robot) or a strong visual hook, NOT to
+     explain a mechanism. It is a GENERIC stock photo picked by keyword, so choose a query a photo library
+     surely has many of, and NEVER imply it is the specific product being discussed. The caption carries
+     the meaning; the photo just sets the scene.
   {"type":"code","heading":"optional","lang":"python|javascript|bash|sql|json","lines":["<=48 chars", ...<=10],"output":["optional terminal output lines"]}
   {"type":"tokens","text":"<=60 chars sentence","tokens":["optional","pieces"],"label":"optional word Thoma says when it splits, default tokens"}
      the sentence splits into coloured token chips with their ID numbers (how an LLM reads text)
@@ -59,7 +65,14 @@ SHOW the mechanism, don't just name it. For AI topics use the concept visuals: t
 reads text, predict for next-word guessing, vectors for embeddings/semantic search/RAG retrieval,
 network for neural nets/training, chat for what a chatbot does (and hallucinations). Use at least
 one concept visual when the topic is about how AI works. Otherwise mostly diagrams, steps, compares and
-analogies; a title or bigtext to open or to land a punchline; a stat for a striking number; code only when it helps. Change the visual every 1-2
+analogies; a title or bigtext to open or to land a punchline; a stat for a striking number; code only when it helps.
+Use an "image" (a real photo) whenever a real-world shot makes the moment concrete: the opening hook, and
+any real-world object, place or device as you introduce it (a car on a street, a drone in the sky, a factory
+robot arm, a datacentre, a chip, a highway). For real-world tech topics (how a car / drone / robot / device
+works) lean on photos: aim for one roughly every 25-40 seconds, interleaved with the diagrams that explain
+the mechanism. For pure-software or AI-concept topics keep photos rare (one or two) so the animated identity
+stays. Never use a photo to explain how something works - a diagram does that - and never imply the generic
+stock photo is the specific product being discussed; the caption carries the meaning. Change the visual every 1-2
 sentences (every 4-10 seconds) so the screen never sits still. Node labels and list items should
 be words Thoma actually says, so they appear on screen as he says them."""
 
@@ -74,7 +87,7 @@ def icon_names() -> list[str]:
 
 @lru_cache
 def icon_svg(name: str) -> str:
-    return (ICON_DIR / f"{name}.svg").read_text()
+    return (ICON_DIR / f"{name}.svg").read_text(encoding="utf-8")
 
 
 def fix_icon(name) -> str:
@@ -135,6 +148,12 @@ def normalize(v: dict) -> dict:
     if v.get("type") == "steps":
         v["items"] = [({"text": x} if isinstance(x, str) else {**x, "icon": fix_icon(x["icon"]) if x.get("icon") else None})
                       for x in v.get("items") or []]
+    if v.get("type") == "image":
+        v["query"] = str(v.get("query", ""))[:100]
+        if v.get("caption") is not None:
+            v["caption"] = str(v["caption"])
+        kind = str(v.get("kind", "photo")).lower()
+        v["kind"] = kind if kind in ("photo", "illustration") else "photo"
     return v
 
 
@@ -174,6 +193,8 @@ def elements(v: dict) -> tuple[list[str], bool]:
         return list(v.get("lines", [])) + (["output"] if v.get("output") else []), True
     if t == "takeaway":
         return [v.get("text", "")], False
+    if t == "image":
+        return [v.get("caption", "")], False
     if t == "tokens":
         return [v.get("text", ""), v.get("label") or "tokens"], False
     if t == "predict":
